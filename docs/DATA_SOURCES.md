@@ -70,3 +70,8 @@ Last 7 days (24–30 Oct) from the history resource, MP only, distance = straigh
 - `POST https://openrouter.ai/api/v1/chat/completions`, `Authorization: Bearer KEY`.
 - Model `deepseek/deepseek-v4.1-flash` (exact ID taken from `/api/v1/models`, which lists `tools` as supported). $0.045 per 1M input tokens, $0.50 per 1M output tokens.
 - Forced `tool_choice` with a `set_intent` function returned `{"crop":"soyabean","quantity_quintals":40,"village":"Sanwer"}` in 1.2 s. 467 tokens, $0.00025. Includes 45 reasoning tokens, so set `max_tokens` with headroom.
+
+## Mandi fee (who pays) — MP Krishi Upaj Mandi Adhiniyam, 1972
+- **Section 19(2)**: "The market fees shall be payable by the buyer of the notified agricultural produce and shall not be deducted from the price payable to the seller." Source: Act text (as amended), https://prsindia.org/files/bills_acts/acts_states/madhya-pradesh/1973/1973MP24.pdf
+- Rate (paid by the buyer): raised from ₹1.00 to ₹1.50 per ₹100 by notification BORAD-LEKHA-2025-26(1073987), 15 Jun 2026, effective from Gazette publication. Source: https://teamleaseregtech.com/updates/article/57895/mpfwad-revision-of-market-fee-under-the-madhya-pradesh-krishi-upaj-mandi-adhiniyam-1972/
+- **Consequence:** the farmer's mandi-fee deduction is 0 in MP. Weighing/hammali charges exist (Sec 17: the committee recovers and distributes them), but rates are set per committee by bye-law, and we found no published rates. So: an editable "other charges ₹/quintal" field, default 0, which the farmer fills in.
