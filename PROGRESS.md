@@ -34,3 +34,41 @@
 - Learned: the history resource lags a day (no rows for today), so use current = today and history = trend/backtest. STT mishears village names (सांवेर→सामेर), so geocoding needs fuzzy matching. The LLM spends reasoning tokens, so give `max_tokens` headroom.
 - Open question for humans: what the "conservative net" should use (min price is often far below modal).
 - **Status: M0 criteria all pass. HUMAN GATE — waiting for "go" before M1.**
+
+### M0 gate decision (humans, 2026-10-30): GO
+1. **Conservative net** = 25th percentile of the mandi's own modal prices over the last 14 days (same commodity + variety). Not computed if fewer than 5 history days ("not enough history", lower confidence). Rank by modal net. Conservative net is a risk badge and tie-breaker only.
+   - Audit flag (not a rejection): min < 0.5 × modal → "wide price spread, mixed quality lots".
+2. **Village matching:** transliterate Devanagari → Latin, then fuzzy-match against real Nominatim place names for the district and cache the result. High confidence → proceed. Low or ambiguous → one spoken confirmation, logged as a trace event. Never geocode an unconfirmed guess.
+3. **Today vs history:** today comes from the current resource. If a mandi is missing today, use its latest history row with its age shown (≤3-day freshness rule still applies). Trends always come from history.
+4. **Names:** normalise whitespace and case. Mandi key = (normalised market, district). F&V yards stay separate. District aliases (Badwani→Barwani, Shehdol→Shahdol) go in `data/synonyms.py`.
+5. **Distance:** 150 km is only a pre-filter. Rank on OSRM road km, and also cap by drive time (tighter cap for onion/tomato).
+6. **User-Agent:** set once on a shared httpx client used by all tools.
+7. **Model:** deepseek/deepseek-v4.1-flash for dev. Before freeze, run the grounding test and a Hindi check on it and one stronger model, then pick the demo model.
+8. **Database:** skip in M1. `DATABASE_URL` must be set before M2.
+
+## M1 — Skeleton
+
+**Goal:** a runnable skeleton that every later milestone builds on.
+
+**Acceptance criteria**
+- [x] Repo structure (backend/, frontend/, docs/), `.env.example`
+- [x] FastAPI `/health` responds
+- [x] Next.js page runs and shows backend health
+- [ ] Postgres connected → **deferred to before M2** (human decision 8)
+- [x] ruff + mypy + pytest configured; one local check command passes (`bash check.sh`, because there's no `make` on the Windows dev box)
+
+**Plan:** `backend/pyproject.toml` (uv), `app/config.py` (env settings), `app/http.py` (shared client with UA, decision 6), `app/main.py` (/health), `tests/test_health.py`, `check.sh`. Frontend from create-next-app. The page calls `/health`.
+
+### Evidence
+- `curl localhost:8000/health` → `{"status":"ok","sources":{"mandi_prices":true,"voice":true,"llm":true,"database":false,"weather":true,"routing":true,"geocoding":true},"llm_model":"deepseek/deepseek-v4.1-flash"}`
+- CORS: request with `Origin: http://localhost:3000` → `access-control-allow-origin: http://localhost:3000`
+- `bash check.sh` → ruff format ✓, ruff ✓, mypy strict "no issues in 3 files", pytest 1 passed, eslint ✓, tsc ✓
+- `npm run build` ✓ (static page). `next start` serves `<title>Harvest Compass</title>`, `lang="hi"`, heading "हार्वेस्ट कम्पास".
+- Not verified: the browser actually rendering the fetched source list. Playwright MCP was down. Evidence above covers the server side and CORS only.
+
+### Reflection
+- Worked: uv for Python deps; create-next-app ran in the background while the backend was written.
+- Deviation: `check.sh` instead of `make check`, because `make` isn't installed on the Windows dev machine. bash works in Git Bash and on Linux.
+- Skipped on purpose: the shared httpx client with UA (decision 6) goes in M2, when the first tool uses it. Postgres is deferred by decision 8.
+- Known warning: starlette TestClient deprecation (inside the library, not our code).
+- **Status: M1 done, except Postgres (deferred). Next: M2 needs `DATABASE_URL` first.**
