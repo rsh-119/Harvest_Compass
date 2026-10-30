@@ -24,7 +24,20 @@ All verified live on 2026-10-30 (IST) during M0.
 - Fields: `Arrival_Date, Commodity, Commodity_Code, District, Grade, Market, Max_Price, Min_Price, Modal_Price, State, Variety`. **Prices are strings.**
 - Indore Soyabean total=22068 rows going back to 2010. Default order is oldest first.
 - Gotcha: market names have **no** ` APMC` suffix (`Gautampura`), unlike the current resource. Strip the suffix before joining.
-- TODO (needs own key): verify `sort[Arrival_Date]=desc` or date-range filtering, so we can get the last 90 days without paging through 22k rows.
+- Verified with own key: `sort[Arrival_Date]=desc` works (newest first), and `filters[Arrival_Date]=29/10/2026` works (`2026-10-29` also accepted). Fetch history one day at a time with `limit=1000`.
+- Lag: history has **no rows for today** (30/10 total=0) and starts at yesterday. Today's prices come from the current resource.
+- Recent rows **do** carry the ` APMC` suffix (`Indore APMC`). Only old rows (2010) lack it. Normalise anyway.
+- Onion has separate fruit-and-vegetable yards: `Indore APMC` vs `Indore(F&V) APMC`. Some names have a double space (`Ashta  APMC`). Normalise by collapsing whitespace. Keep F&V as its own yard, because it has different coordinates and prices.
+
+## ⚠ data.gov.in rejects httpx's default User-Agent
+Requests with UA `python-httpx/*` get an **empty HTTP 502**. The same request with a custom UA returns 200. Always send our own `User-Agent`.
+
+## Coverage query (2026-10-30)
+Last 7 days (24–30 Oct) from the history resource, MP only, distance = straight line from Indore to district centroid (Nominatim) ≤ 150 km. Districts in range: Agar Malwa, Dewas, Dhar, Harda, Indore, Jhabua, Khandwa, Khargone, Ratlam, Sehore, Shajapur, Ujjain.
+- **Soyabean: 67 mandis.** Daily MP rows: 61–295.
+- **Onion: 42 mandis/yards** (including F&V yards). Daily MP rows: 18–98.
+- Nominatim didn't resolve `Badwani` or `Shehdol` with "X district, Madhya Pradesh". Their spellings need a lookup alias (Barwani/Shahdol).
+- Caveat: centroid distance is approximate. The app uses per-mandi geocodes and OSRM road km.
 
 ## Open-Meteo forecast ✅
 - `GET https://api.open-meteo.com/v1/forecast?latitude=22.7196&longitude=75.8577&daily=precipitation_sum,precipitation_probability_max&models=ecmwf_ifs025,gfs_seamless&timezone=Asia/Kolkata&forecast_days=7`
@@ -42,5 +55,18 @@ All verified live on 2026-10-30 (IST) during M0.
 - Returns `lat`/`lon` as strings: Ujjain 23.1885131, 75.7716562.
 - Max 1 request/second. Cache permanently.
 
-## Sarvam STT/TTS — ⏳ needs SARVAM_API_KEY
-## OpenRouter — ⏳ needs OPENROUTER_API_KEY + chosen LLM_MODEL
+## Sarvam TTS ✅
+- `POST https://api.sarvam.ai/text-to-speech`, header `api-subscription-key: KEY`, JSON `{"text", "language_code": "hi-IN", "model": "bulbul:v4-flash", "speaker": "aditya_hi_conversational"}`.
+- v4-flash speakers are persona IDs (`<name>_hi_<style>`), not the v3 short names. Up to 2500 chars per request.
+- Response `{request_id, audios: [base64 WAV]}`. A 1-sentence Hindi reply took 1.7 s and produced ~210 KB of WAV.
+
+## Sarvam STT ✅
+- `POST https://api.sarvam.ai/speech-to-text`, multipart: `model=saaras:v4`, `mode=transcribe`, `language_code=hi-IN`, `file=@audio.wav`.
+- Response `{request_id, transcript, language_code}`. Took 0.7 s.
+- Round-trip test: TTS of "...गाँव सांवेर..." was transcribed as "...गांव **सामेर**...". Village names need fuzzy matching against the gazetteer.
+- Windows console: print Devanagari with `PYTHONIOENCODING=utf-8`.
+
+## OpenRouter ✅
+- `POST https://openrouter.ai/api/v1/chat/completions`, `Authorization: Bearer KEY`.
+- Model `deepseek/deepseek-v4.1-flash` (exact ID taken from `/api/v1/models`, which lists `tools` as supported). $0.045 per 1M input tokens, $0.50 per 1M output tokens.
+- Forced `tool_choice` with a `set_intent` function returned `{"crop":"soyabean","quantity_quintals":40,"village":"Sanwer"}` in 1.2 s. 467 tokens, $0.00025. Includes 45 reasoning tokens, so set `max_tokens` with headroom.
