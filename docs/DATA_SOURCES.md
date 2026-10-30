@@ -43,6 +43,7 @@ Last 7 days (24–30 Oct) from the history resource, MP only, distance = straigh
 - `GET https://api.open-meteo.com/v1/forecast?latitude=22.7196&longitude=75.8577&daily=precipitation_sum,precipitation_probability_max&models=ecmwf_ifs025,gfs_seamless&timezone=Asia/Kolkata&forecast_days=7`
 - With several models, each daily key gets a model suffix: `precipitation_sum_ecmwf_ifs025`, `precipitation_sum_gfs_seamless`, and so on.
 - Gotcha: ECMWF returned **`-0.10` mm** for one day. Clamp to ≥ 0.
+- Gotcha (verified M4): with **one** model in `models=`, the keys have **no suffix** (`precipitation_sum`). With two or more models, keys are suffixed. The parser handles both.
 - No key. CC BY 4.0, so the UI must show attribution.
 
 ## OSRM ✅
@@ -69,6 +70,7 @@ Last 7 days (24–30 Oct) from the history resource, MP only, distance = straigh
 ## OpenRouter ✅
 - `POST https://openrouter.ai/api/v1/chat/completions`, `Authorization: Bearer KEY`.
 - Model `deepseek/deepseek-v4.1-flash` (exact ID taken from `/api/v1/models`, which lists `tools` as supported). $0.045 per 1M input tokens, $0.50 per 1M output tokens.
+- Reasoning tokens count against `max_tokens`. Measured: 642 of 700 tokens went to reasoning, leaving empty content. We send `reasoning: {effort: "low"}` and `max_tokens: 1500`. Real answers use about 165–364 reasoning tokens, ~$0.0002–0.0004 per call.
 - Forced `tool_choice` with a `set_intent` function returned `{"crop":"soyabean","quantity_quintals":40,"village":"Sanwer"}` in 1.2 s. 467 tokens, $0.00025. Includes 45 reasoning tokens, so set `max_tokens` with headroom.
 
 ## Mandi fee (who pays) — MP Krishi Upaj Mandi Adhiniyam, 1972

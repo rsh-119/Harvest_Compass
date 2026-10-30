@@ -25,6 +25,15 @@ class Settings(BaseSettings):
     center_lat: float = 22.7196
     center_lon: float = 75.8577
     radius_km: float = 150
+    max_radius_km: float = 250  # repair widens 150 -> 200 -> 250
+
+    # Farmer-editable assumptions, used only when the farmer doesn't say, and always shown as
+    # "assumed, edit me". ponytail: team to replace with local hire rates before the demo.
+    default_rate_per_km: float = 30.0
+    default_capacity_q: float = 25.0
+    # Longest drive we consider. Perishables get a tighter cap.
+    max_drive_min: float = 240
+    max_drive_min_perishable: float = 150
 
 
 settings = Settings()

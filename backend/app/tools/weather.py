@@ -20,11 +20,14 @@ class DayForecast(BaseModel):
     precip_prob: float | None
 
 
-def parse(body: dict[str, Any], model: str) -> list[DayForecast]:
-    """Pull one model's columns. ECMWF has returned -0.1 mm (M0), so clamp rain at 0."""
+def parse(body: dict[str, Any], model: str, only_model: bool = False) -> list[DayForecast]:
+    """Pull one model's columns. With several models Open-Meteo suffixes each field with the
+    model name. With exactly one model it doesn't (verified in M4). ECMWF has returned
+    -0.1 mm (M0), so clamp rain at 0."""
     daily = body["daily"]
-    rain = daily.get(f"precipitation_sum_{model}", [])
-    prob = daily.get(f"precipitation_probability_max_{model}", [])
+    sfx = "" if only_model else f"_{model}"
+    rain = daily.get(f"precipitation_sum{sfx}", [])
+    prob = daily.get(f"precipitation_probability_max{sfx}", [])
     out = []
     for i, d in enumerate(daily["time"]):
         mm = rain[i] if i < len(rain) else None
@@ -59,7 +62,7 @@ async def forecast(
     )
 
     def split(body: dict[str, Any]) -> dict[str, list[DayForecast]]:
-        per_model = {m: parse(body, m) for m in models}
+        per_model = {m: parse(body, m, len(models) == 1) for m in models}
         return {
             m: days for m, days in per_model.items() if any(d.precip_mm is not None for d in days)
         }

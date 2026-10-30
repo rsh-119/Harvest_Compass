@@ -32,6 +32,7 @@ class DayScore:
     both_dry: bool
     uncertain: bool
     reasons: list[str] = field(default_factory=list)
+    transport_known: bool = True
 
 
 def risk(d: Day) -> float | None:
@@ -88,9 +89,19 @@ def score_window(
             reasons.append("weather models disagree")
         uncertain = missing_next or len(today) < 2 or disagree
         scored.append(
-            DayScore(day, max(per_model.values()), all(dry) and len(today) >= 2, uncertain, reasons)
+            DayScore(
+                day,
+                max(per_model.values()),
+                all(dry) and len(today) >= 2,
+                uncertain,
+                reasons,
+                transport_known=not missing_next,
+            )
         )
         day += timedelta(days=1)
-    # Prefer days both models call dry, then confident days, then lowest risk, then earliest.
-    scored.sort(key=lambda s: (not s.both_dry, s.uncertain, round(s.score, 3), s.day))
+    # Prefer days both models call dry, then confident days, then days whose transport-day
+    # forecast exists (its unknown risk was counted as 0), then lowest risk, then earliest.
+    scored.sort(
+        key=lambda s: (not s.both_dry, s.uncertain, not s.transport_known, round(s.score, 3), s.day)
+    )
     return scored, uncovered

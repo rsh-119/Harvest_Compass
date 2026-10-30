@@ -175,3 +175,11 @@ def test_perishable_weights_transport_day_more() -> None:
     grain, _ = score_window(m, D0, D0, perishable=False)
     onion, _ = score_window(m, D0, D0, perishable=True)
     assert onion[0].score > grain[0].score
+
+
+def test_unknown_transport_day_ranks_after_known_when_all_uncertain() -> None:
+    # One model only: every day is uncertain. The last day's transport risk is unknown, so it
+    # must not win just because "unknown" added 0 risk.
+    a = days([(0, 20), (0, 10), (0, 0)])
+    scored, _ = score_window({"a": a}, D0, D0 + timedelta(days=2), perishable=False)
+    assert scored[-1].day == D0 + timedelta(days=2) and not scored[-1].transport_known

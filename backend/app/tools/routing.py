@@ -4,6 +4,7 @@ The table service gives one origin -> many mandis in a single request. Each pair
 on its own (road distances don't change), so a repeat question costs OSRM nothing.
 """
 
+import asyncio
 import math
 from typing import Any
 
@@ -42,24 +43,26 @@ async def road_distances(
     coords = ";".join([_pt(*origin)] + [_pt(*d) for d in dests])
     url = f"{BASE}{coords}?sources=0&annotations=distance,duration"
     table: list[Route | None] | None = None
+    lock = asyncio.Lock()
 
     async def fetch_table() -> list[Route | None]:
         nonlocal table
-        if table is None:  # first cache miss pays for the whole table, the rest reuse it
-            table = parse_table(await request_json("GET", url), len(dests))
+        async with lock:  # first cache miss pays for the whole table, the rest reuse it
+            if table is None:
+                table = parse_table(await request_json("GET", url), len(dests))
         return table
 
-    results = []
-    for i, d in enumerate(dests):
+    async def one(i: int, d: tuple[float, float]) -> Sourced[Route | None]:
         pair_url = f"{BASE}{_pt(*origin)};{_pt(*d)}?sources=0&annotations=distance,duration"
 
-        async def one(i: int = i) -> Any:
+        async def fetch() -> Any:
             r = (await fetch_table())[i]
             return None if r is None else r.model_dump()
 
-        res = await cached(f"osrm:{_pt(*origin)}:{_pt(*d)}", pair_url, None, one)
-        results.append(res.map(lambda v: None if v is None else Route(**v)))
-    return results
+        res = await cached(f"osrm:{_pt(*origin)}:{_pt(*d)}", pair_url, None, fetch)
+        return res.map(lambda v: None if v is None else Route(**v))
+
+    return list(await asyncio.gather(*(one(i, d) for i, d in enumerate(dests))))
 
 
 def haversine_km(a: tuple[float, float], b: tuple[float, float]) -> float:

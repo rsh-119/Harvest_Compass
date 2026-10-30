@@ -72,3 +72,96 @@
 - Skipped on purpose: the shared httpx client with UA (decision 6) goes in M2, when the first tool uses it. Postgres is deferred by decision 8.
 - Known warning: starlette TestClient deprecation (inside the library, not our code).
 - **Status: M1 done, except Postgres (deferred). Next: M2 needs `DATABASE_URL` first.**
+
+## M2 — Tools with provenance and cache
+
+**Goal:** every data source behind a typed tool that records where each number came from and when, and that degrades gracefully.
+
+**Acceptance criteria**
+- [x] Each tool returns typed results with `source_url`, `fetched_at`, `status`. Timeouts plus one retry. Cache read/write. Nominatim rate-limited.
+- [x] Live smoke test script prints real results for all tools.
+- [x] (Human reminder) The 90-day history fetch is cached, so judging doesn't hit data.gov.in repeatedly.
+
+**Plan:** `app/http.py` (shared client, UA, retry) · `app/data/cache.py` (one `api_cache` table, TTL, stale fallback) · `app/data/synonyms.py` · `app/tools/{mandi,weather,routing,geocode,voice}.py` · `scripts/smoke.py` · parser unit tests.
+- Neon project `harvest-compass` (rapid-surf-18198750, aws-ap-southeast-1, free tier) created; `DATABASE_URL` is in `.env`.
+- DB access uses psycopg with plain SQL instead of SQLAlchemy. There's one cache table, so an ORM adds a layer without benefit, and raw SQL is easier for the team to explain.
+
+### Evidence (M2)
+`uv run python -m scripts.smoke`, first (cold) run, all `live`:
+- mandi current: Soyabean 193 rows (e.g. Harsood APMC Yellow ₹6800, 30 Oct), Onion 55 rows
+- history 90 days: Soyabean 11,424 rows, Onion 5,941 rows. All 180 day-calls `live` (~11 min cold, see below)
+- geocode: Indore 22.7204. 7 of 8 mandis located (Badnawar, Indore, Dhar, Mhow, Dhamnod, Kukshi, Khategaon). **Haatpipliya UNRESOLVED**: OSM spells it "Hatpipliya". It gets excluded and named, never guessed.
+- OSRM table: Indore→Dhar 64.0 km/56 min, →Mhow 23.1 km/25 min, →Kukshi 167.6 km/141 min
+- weather: ecmwf_ifs025 and gfs_seamless, 7 days each
+- TTS 134 KB WAV → STT returned the exact sentence: "सांवेर मंडी में सोयाबीन का भाव सबसे अच्छा है।"
+
+Second (warm) run, total **34.8 s** vs 1353.9 s:
+- history Soyabean `{'cache': 89, 'live': 1}` in 6.1 s (the 1 live day is the newly-added yesterday, after the IST date rolled over). Onion `{'cache': 90}` in 5.3 s.
+- routing, weather, TTS: `cache`. Geocode was `live` only because its cache key changed (English names).
+
+### Reflection (M2)
+- Broke 1: the cold history fetch was slow (~7 s per day-call at concurrency 4) while curl took 0.4–1.0 s. Root cause: occasional data.gov.in requests hang, and a 90 s timeout plus a retry blocked a slot for up to 3 min. Fix: 20 s timeout. A hung call fails fast and the retry usually succeeds.
+- Broke 2: cache keys and "today" used `date.today()` (machine-local). The deployed server runs on UTC, so "today" would be wrong between 00:00 and 05:30 IST. Fix: `app/clock.py: today_ist()` everywhere.
+- Learned: data.gov.in rejects httpx's default UA (fixed once, in `app/http.py`). Neon free tier works, and warm reads are fast.
+- **Status: M2 done.**
+
+## M3 — Scoring and audit (pure functions)
+**Acceptance criteria**
+- [x] `net_profit`, `harvest_window`, `trend`, `audit_rules` with unit tests (zero quantity, missing price, min > max, all mandis stale, model disagreement)
+- [x] Coverage ≥ 90% on `scoring/`
+
+### Evidence (M3)
+`uv run pytest -q --cov=app/scoring` → **24 passed, coverage 100%** (audit_rules 52/52, harvest_window 52/52, net_profit 39/39, trend 12/12).
+
+### Reflection (M3)
+- Writing tests found 2 real bugs in harvest_window:
+  1. The last forecast day looked safest because its unknown transport-day risk counted as 0. Now "no forecast for the transport day" makes the day uncertain.
+  2. The reason "weather models disagree" was shown when the only issue was a missing forecast. Now the two are separate.
+- Human decision applied: conservative price = 25th percentile of the mandi's own last-14-day modal prices, with a minimum of 5 days.
+- **Mandi fee finding (needs a human look at the M4 gate):** MP Act Sec 19(2) says the market fee is paid by the BUYER and "shall not be deducted from the price payable to the seller". So the farmer's fee rate = 0, citation in DATA_SOURCES.md. Added an editable "other charges ₹/quintal" (hammali/weighing), default 0.
+- **Status: M3 done.**
+
+## M4 — Agent graph end to end (HUMAN GATE: design review)
+**Acceptance criteria**
+- [x] A text question in Hindi returns a ranked answer with sources, using live data
+- [x] Trace shows plan → tools → audit → compute → explain
+- [x] A forced stale/outlier case is rejected with a reason; a forced source failure triggers a repair
+- [x] Number validator active; invented-number count logged
+
+### Evidence (M4)
+**Hindi question**: "मेरे पास 40 क्विंटल सोयाबीन है, गाँव सांवेर, इंदौर। फसल 2 नवंबर से 5 नवंबर के बीच तैयार होगी। कहाँ बेचूँ?"
+- understand → Sanwer matched on OSM → plan `prices → history → mandis → weather → drive_cap → assume_vehicle`
+- 193 rows today, 5,621 history rows, both weather models, 82/99 mandis located, 64/64 road distances
+- audit: real stale/outlier flags, e.g. "Badnagar APMC: Price is 25 days old (limit 3)" and "Badnagar APMC: Modal 5985 is far from usual (median 6890); treated as suspect". 17 unmappable mandis named and excluded. Yellow/FAQ vs Soyabeen/FAQ marked not comparable.
+- result: **57 usable of 81**. #1 Sanwer APMC ₹6900/q net (0 km, same town), #2 Rajgarh ₹7300 modal but 134 km → ₹6898/q net, #3 Indore ₹6830/q. Harvest days 2 Nov, 4 Nov (both models dry). Confidence high. **Invented numbers: 0.**
+
+**Forced failures** (`--fault mandi_current --fault weather_ecmwf`):
+- `repair: Today's price source failed (disabled by test switch); using each mandi's latest reported price, with its age` → best Indore APMC ₹6830/q, price age 2 days, confidence dropped to **medium** ("best price is 2 days old")
+- `repair: Weather model ['ecmwf_ifs025'] unavailable; using ['gfs_seamless'] only, so days are marked uncertain` → confidence medium ("weather models disagree or one is missing")
+
+**Radius repair** (village Rampur, Shahdol, before the ambiguity fix): execute ran 3× with 4 → 6 → 9 mandis (radius 150 → 200 → 250 km).
+
+**SSE through uvicorn** (`POST /ask`, Hinglish "mere paas chalis quintal soyabean hai, gaon sanwer..."): events stream one by one; warm total **14.5 s** (locating 4.3 s, OSRM 1.1 s, LLM ~4 s). LLM cost about $0.0006 per question.
+
+**Clarifications**: wheat → "only soybean/onion". "chalis bori pyaaz" → "एक बोरी में कितने किलो?". Rampur → "क्या आपका गाँव Rampur है?". "सामेर" → "village not found, say village and district".
+
+`pytest`: 31 passed. scoring coverage 100%. ruff + mypy strict clean.
+
+### Reflection (M4)
+Six real bugs were found by running it live, each fixed at the root:
+1. With one weather model, Open-Meteo drops the key suffix, so the fallback model parsed as empty. Fixed the parser and added a test.
+2. An unknown transport-day risk counted as 0, so the last forecast day still won when every day was uncertain. Added a `transport_known` sort key and a test.
+3. The LLM spent its token budget on reasoning, giving an empty Hindi answer (the template was used). Fixed with low reasoning effort and 1500 max tokens. Trace now says "empty answer" instead of a misleading message.
+4. A database outage crashed the answer (30 s PoolTimeout). The cache now degrades to live calls (bounded 10 s wait).
+5. Warm path was slow (36 s locating, 14 s routing) because ~200 sequential DB reads at ~150 ms each. Lookups are now concurrent (pool 20): 4.3 s and 1.1 s.
+6. Tied village names ("Rampur" ×N) were accepted as confident. Ties now ask. Same-place duplicates (town + tahsil within 10 km) are ignored.
+
+Also: Windows-only event-loop issue (psycopg vs Proactor). Fixed with `--loop asyncio:SelectorEventLoop`, no code change.
+
+**Open items for the design review:**
+- **Mandi fee:** the farmer's fee = 0 per MP Act Sec 19(2). The brief's formula assumed a farmer-paid fee. Please confirm.
+- **Vehicle defaults** ₹30/km, 25 q/trip are placeholders the farmer can edit. Team: replace with real local hire rates.
+- 17 of 99 mandis can't be geocoded (e.g. Agar, Harsood, Haatpipliya/"Hatpipliya", "A lot"/Alot). They're excluded and named. Plan: hand-check spelling aliases into `synonyms.py` (vocabulary, not coordinates), or use Nominatim structured search in M7.
+- STT village errors ("सामेर"): "did you mean Sanwer?" needs a per-district village list (e.g. OSM Overpass). Planned for M6.
+- Sanwer→Sanwer APMC = 0 km road (village and mandi are in the same town). Correct, but it looks odd. The UI should say "same town".
+- **Status: M4 criteria pass. HUMAN GATE — waiting for design review before M5.**
