@@ -28,18 +28,6 @@ const MandiMap = dynamic(() => import("@/components/MandiMap"), { ssr: false });
 // No vehicle defaults: the agent asks. Other charges start at 0 = "none entered" (labelled so).
 const DEFAULT_PARAMS: Params = { other_charges_per_q: 0 };
 
-// Example questions. Other languages see the English ones; the agent understands either way.
-const EXAMPLES: Record<string, string[]> = {
-  en: [
-    "I have 40 quintals of soybean in Sanwer village, Indore. It will be ready between 2 and 5 November. Where should I sell?",
-    "30 quintals of onion, village Mhow, Indore. I have storage. Should I wait 5 days or sell now?",
-  ],
-  hi: [
-    "मेरे पास 40 क्विंटल सोयाबीन है, गाँव सांवेर, इंदौर। फसल 2 से 5 नवंबर के बीच तैयार होगी। कहाँ बेचूँ?",
-    "30 क्विंटल प्याज़ है, गाँव महू, इंदौर। रखने की जगह है, 5 दिन रुकूँ या अभी बेचूँ?",
-  ],
-};
-
 const rupee = (n: number) => "₹" + Math.round(n).toLocaleString("en-IN");
 const fmtDay = (iso: string, locale: string) =>
   new Date(iso + "T00:00:00").toLocaleDateString(locale, { weekday: "short", day: "numeric", month: "long" });
@@ -288,7 +276,7 @@ export default function AskPage() {
         {!final && !busy && (
           <div className="mt-3 space-y-1">
             <p className="text-xs text-ink-500">{t("examples")}</p>
-            {(EXAMPLES[lang] ?? EXAMPLES.en).map((ex) => (
+            {[t("ex1"), t("ex2")].map((ex) => (
               <button key={ex} onClick={() => setText(ex)} className="block text-left text-sm text-leaf-800 underline-offset-2 hover:underline">
                 {ex}
               </button>
@@ -341,18 +329,8 @@ function ListenButton({ url }: { url: string }) {
   );
 }
 
-const SOURCE_NAME: Record<string, string> = {
-  mandi_prices: "Mandi prices (data.gov.in)",
-  weather: "Weather (Open-Meteo)",
-  routing: "Road distance (OSRM)",
-  geocoding: "Place search (Nominatim)",
-  database: "Cache database",
-  llm: "Language model",
-  voice: "Voice (Sarvam)",
-};
-
 function Footer({ h, faults, setFaults }: { h: Health; faults: string[]; setFaults: (f: string[]) => void }) {
-  const { t } = useLang();
+  const { t, d } = useLang();
   const [use, setUse] = useState<Stats | null>(null);
   useEffect(() => {
     stats().then(setUse).catch(() => setUse(null));
@@ -366,7 +344,7 @@ function Footer({ h, faults, setFaults }: { h: Health; faults: string[]; setFaul
         <ul className="mt-2 space-y-1">
           {Object.entries(h.sources).map(([k, v]) => (
             <li key={k}>
-              {v.ok ? "✅" : "❌"} {SOURCE_NAME[k] ?? k}
+              {v.ok ? "✅" : "❌"} {(d.ask as Record<string, string>)[`src_${k}`] ?? k}
               <span className="text-xs text-ink-500">
                 {v.ms != null ? ` · ${v.ms} ms` : v.note ? ` · ${v.note}` : ""}
                 {v.error ? ` · ${v.error}` : ""}
@@ -547,7 +525,11 @@ function ResultCard({
 
       <section className="mt-4 glass p-4 sm:p-5">
         <h3 className="mb-2 font-semibold text-ink-800">{t("map")}</h3>
-        <MandiMap origin={place} mandis={r.ranking.slice(0, 5)} />
+        <MandiMap
+          origin={place}
+          mandis={r.ranking.slice(0, 5)}
+          labels={{ home: t("map_home"), village: t("map_village"), map: t("map") }}
+        />
       </section>
 
       <section className="mt-4 glass p-4 sm:p-5">

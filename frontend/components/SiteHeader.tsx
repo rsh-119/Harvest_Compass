@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { LanguagePicker } from "@/lib/i18n";
+import { LanguagePicker, useLang } from "@/lib/i18n";
 import { Compass, NAV } from "./brand";
 
 
 export default function SiteHeader() {
   const path = usePathname();
   const [open, setOpen] = useState(false);
+  const { d } = useLang();
   return (
     <header className="sticky top-0 z-[1100] px-4 pt-3">
       <nav
@@ -30,7 +31,7 @@ export default function SiteHeader() {
                   path === n.href ? "bg-white/80 text-ink-900" : "text-ink-700 hover:bg-white/60"
                 }`}
               >
-                {n.label}
+                {d.common.nav[n.key]}
               </Link>
             </li>
           ))}
@@ -39,13 +40,13 @@ export default function SiteHeader() {
           <LanguagePicker compact />
         </div>
         <Link href="/ask" className="btn-primary ml-auto px-4 py-2 text-sm whitespace-nowrap sm:ml-0" onClick={() => setOpen(false)}>
-          Ask
+          {d.common.ask_btn}
         </Link>
         <button
           className="rounded-full p-2 text-ink-800 hover:bg-white/60 md:hidden"
           aria-expanded={open}
           aria-controls="mobile-nav"
-          aria-label="Menu"
+          aria-label={d.common.menu}
           onClick={() => setOpen(!open)}
         >
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
@@ -65,7 +66,7 @@ export default function SiteHeader() {
                 onClick={() => setOpen(false)}
                 className="block rounded-xl px-4 py-3 font-semibold text-ink-800 hover:bg-white/70"
               >
-                {n.label}
+                {d.common.nav[n.key]}
               </Link>
             </li>
           ))}

@@ -18,7 +18,16 @@ function pin(label: string, color: string): L.DivIcon {
   });
 }
 
-export default function MandiMap({ origin, mandis }: { origin: Place; mandis: MandiRow[] }) {
+// labels: { home, village, map } from the language files (ask.map_home, ask.map_village, ask.map)
+export default function MandiMap({
+  origin,
+  mandis,
+  labels,
+}: {
+  origin: Place;
+  mandis: MandiRow[];
+  labels: { home: string; village: string; map: string };
+}) {
   const el = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -29,8 +38,8 @@ export default function MandiMap({ origin, mandis }: { origin: Place; mandis: Ma
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     }).addTo(map);
     const pts: L.LatLngExpression[] = [[origin.lat, origin.lon]];
-    L.marker([origin.lat, origin.lon], { icon: pin("घर", "#1f2937") })
-      .bindPopup(`आपका गाँव: ${esc(origin.name)}`)
+    L.marker([origin.lat, origin.lon], { icon: pin(labels.home, "#1f2937") })
+      .bindPopup(`${esc(labels.village)}: ${esc(origin.name)}`)
       .addTo(map);
     mandis.forEach((m, i) => {
       if (m.lat == null || m.lon == null) return;
@@ -43,7 +52,7 @@ export default function MandiMap({ origin, mandis }: { origin: Place; mandis: Ma
     return () => {
       map.remove();
     };
-  }, [origin, mandis]);
+  }, [origin, mandis, labels.home, labels.village]);
 
-  return <div ref={el} className="h-72 w-full rounded-xl" role="img" aria-label="मंडियों का नक्शा" />;
+  return <div ref={el} className="h-72 w-full rounded-xl" role="img" aria-label={labels.map} />;
 }

@@ -1,0 +1,412 @@
+{
+  "common": {
+    "nav": {
+      "how": "How it works",
+      "results": "Results",
+      "data": "Data & sources",
+      "about": "About"
+    },
+    "ask_btn": "Ask",
+    "ask_agent": "Ask the agent",
+    "menu": "Menu",
+    "tagline": "Which mandi, which day.",
+    "footer_built": "Mandi and harvest decisions for soybean and onion farmers.",
+    "attr_prices": "Mandi prices: data.gov.in, Government Open Data License – India.",
+    "attr_weather": "Weather data by",
+    "attr_map": "Roads, places and map ©",
+    "attr_osm": "OpenStreetMap contributors",
+    "attr_speech": "Speech by Sarvam AI.",
+    "loading": "Loading…",
+    "backend_down": "Results are unavailable right now. Please try again shortly."
+  },
+  "home": {
+    "hero_l1": "Which mandi,",
+    "hero_l2": "which day.",
+    "hero_sub": "Harvest Compass tells a soybean or onion farmer which mandi pays the most once transport is paid for, and which days are dry enough to harvest. Ask in English, Hindi or 21 other Indian languages, by voice or text.",
+    "cta_ask": "Ask a question",
+    "cta_how": "See how it works",
+    "figure_label": "What the agent does with one question",
+    "demo_question": "I have 40 quintals of soybean in Sanwer village. Where should I sell?",
+    "steps": [
+      {
+        "t": "Understands",
+        "d": "Crop, quantity and village"
+      },
+      {
+        "t": "Plans",
+        "d": "Which sources to call"
+      },
+      {
+        "t": "Fetches",
+        "d": "Prices, two weather models and road km, in parallel"
+      },
+      {
+        "t": "Checks the data",
+        "d": "Rejects stale, odd and mismatched prices"
+      },
+      {
+        "t": "Repairs",
+        "d": "Changes the plan if a source fails"
+      },
+      {
+        "t": "Calculates",
+        "d": "Ranks mandis by net ₹ per quintal"
+      },
+      {
+        "t": "Answers",
+        "d": "In the farmer's language, spoken"
+      }
+    ],
+    "figcaption": "Each step streams live. A full answer takes about 12 seconds.",
+    "problem_title": "Most farmers sell at the nearest mandi, or wherever a trader says.",
+    "problems": [
+      "Prices differ from mandi to mandi, and the trip to reach a better one costs money.",
+      "Published prices can be days old, or come from one odd lot that doesn't represent the market.",
+      "Rain on harvest or transport day spoils the crop. Forecasts exist, but in English and in millimetres."
+    ],
+    "gets_title": "What the farmer gets",
+    "gets": [
+      {
+        "t": "Money in hand after costs",
+        "d": "The mandi that pays most after round-trip transport at the farmer's own vehicle rate, not the one with the highest headline price."
+      },
+      {
+        "t": "Safe days to harvest",
+        "d": "Days inside the harvest window when ECMWF and GFS both expect it to stay dry, and the transport day after."
+      },
+      {
+        "t": "Wait or sell?",
+        "d": "What waiting three days might do, from the real 14-day price trend and rain risk, labelled as a trend, not a forecast."
+      },
+      {
+        "t": "It asks instead of guessing",
+        "d": "Which Rampur? How many kg in a sack? What does the vehicle cost? One short question instead of a made-up value."
+      }
+    ],
+    "audit_title": "Checked before it's trusted",
+    "audit_body": "Public price data is messy. Before ranking, the agent rejects prices that are stale, inconsistent, far from the mandi's own recent history, or for a different variety, and names each mandi it dropped with the reason. The language model only phrases numbers the agent computed; a checker throws out any number or mandi name it can't find in the facts.",
+    "audit_link": "How the audit and repair work",
+    "audit_caption": "Real lines from the agent's log, 31 Oct 2026: 40 quintals of soybean near Ujjain.",
+    "measured_title": "Measured, not promised",
+    "measured_body": "We replayed 60 days of real prices for 30 real villages in Madhya Pradesh. Each day the agent chose using only what it would have known that day; we then scored it on the next day's real price against simply going to the nearest mandi. Transport assumed at ₹1 per quintal per km.",
+    "measured_link": "Full results and limits",
+    "sources_intro": "Data sources",
+    "sources": [
+      "data.gov.in mandi prices",
+      "Open-Meteo: ECMWF and GFS",
+      "OSRM road routing",
+      "OpenStreetMap Nominatim",
+      "Sarvam speech"
+    ],
+    "cta_title": "Ask about your crop",
+    "cta_body": "Speak or type in your language. The answer comes back in the same language.",
+    "cta_btn": "Ask now"
+  },
+  "live": {
+    "loading": "Loading measured results…",
+    "fallback": "Results are unavailable right now.",
+    "open_results": "Open the results page",
+    "gain_note": "mean gain per quintal over the nearest mandi, across {n} replayed decisions in {v} villages"
+  },
+  "how": {
+    "title": "One question, seven steps, all on screen.",
+    "sub": "Harvest Compass is a LangGraph agent. The language model reads the question and phrases the answer. Everything between, including every rupee, is plain code you can check.",
+    "loop": [
+      {
+        "name": "Understand",
+        "body": "A language model turns the question, in English, Hindi or any of 21 other Indian languages, into a strict form: crop, quantity, village, harvest window, vehicle rate. Sacks need a stated weight. If the village matches two places, or a value is missing, it asks one short question."
+      },
+      {
+        "name": "Plan",
+        "body": "Plain rules decide which sources to call and why: today's prices, 30 days of history, two weather models, road routes. A question about waiting adds the trend step."
+      },
+      {
+        "name": "Fetch",
+        "body": "Calls run in parallel with timeouts and one retry. Every response is cached with its source URL and fetch time, so a later failure can fall back to real older data and say how old it is."
+      },
+      {
+        "name": "Audit",
+        "body": "Pure rules, no model: prices older than 3 days, min above max, outliers against the mandi's own month and the region, and mismatched variety or grade are excluded. Each rejection is shown with its reason."
+      },
+      {
+        "name": "Repair",
+        "body": "If too few mandis survive, the search radius widens. If today's price feed is down, each mandi's latest report is used with its age. If one weather model is down, the other is used and days are marked uncertain."
+      },
+      {
+        "name": "Calculate",
+        "body": "Each mandi's 7-day median price minus round-trip transport (trips × 2 × km × the farmer's rate) gives net ₹ per quintal. A farther mandi has to win by more than ₹50 a quintal to beat a nearer one."
+      },
+      {
+        "name": "Explain",
+        "body": "The model writes two or three sentences in the farmer's language from the computed facts only. A checker rejects any number or mandi name not in the facts, retries once, then falls back to a fixed template. Sarvam reads it aloud."
+      }
+    ],
+    "rules_title": "Audit rules",
+    "rules_body": "A rejected mandi is never silently dropped. The farmer sees it under \"Mandis left out\" with the reason.",
+    "rules": [
+      {
+        "k": "Stale",
+        "v": "Price reported more than 3 days ago"
+      },
+      {
+        "k": "Inconsistent",
+        "v": "Minimum above maximum, or the modal price outside the min–max range"
+      },
+      {
+        "k": "Outlier",
+        "v": "Unusual against both the mandi's own last 30 days and today's regional prices (robust z-score)"
+      },
+      {
+        "k": "Not comparable",
+        "v": "Different variety or grade from the most common lot in the region"
+      },
+      {
+        "k": "Unmapped",
+        "v": "Mandi town not found on OpenStreetMap, so no honest road distance"
+      }
+    ],
+    "switches_title": "Test switches",
+    "switches_body": "On the ask page, the test switches let anyone turn a source off for the next question: today's prices, one weather model, routing. The agent skips it and the log shows how it recovers.",
+    "voice_title": "Voice",
+    "voice_body": "Sarvam speech-to-text turns the recording into text in the chosen language (all 22 scheduled languages and English), which lands in the box so the farmer can fix a misheard word. The reply is spoken by Sarvam text-to-speech in the 9 languages it has voices for; the rest get text. If the mic is blocked or speech fails, typing and reading still work.",
+    "try_btn": "Try a question"
+  },
+  "results": {
+    "title": "What we measured",
+    "sub": "All figures are read from stored runs, including cases where the agent does not beat the simple choice.",
+    "bt_title": "Backtest: 60 days, 30 villages in Madhya Pradesh",
+    "bt_body": "Each day, the agent chose a mandi using only data up to that day, with its own audit and ranking. We scored the choice on the next day's real price at that mandi, against the nearest reporting mandi. Regret is how far behind the best mandi in hindsight it was.",
+    "ground_title": "Grounding: does the model invent numbers?",
+    "ground_body": "20 varied questions through the whole agent, on 31 Oct 2026. Every number in each answer was checked against the computed facts.",
+    "cols": {
+      "model": "Model",
+      "answered": "Answered",
+      "invented": "Invented numbers",
+      "time": "Median / p95 time",
+      "note": "Note"
+    },
+    "ground_rows": [
+      {
+        "answered": "19 of 20",
+        "time": "11.4 s / 15.3 s",
+        "note": "The 20th correctly asked to confirm a tahsil"
+      },
+      {
+        "answered": "19 of 20",
+        "time": "11.6 s median",
+        "note": "Wrote Badnagar as a different town"
+      },
+      {
+        "answered": "—",
+        "time": "—",
+        "note": "Doesn't support the forced tool call we use"
+      }
+    ],
+    "in_use": "in use",
+    "usage_title": "Live usage, last 7 days",
+    "usage_body": "Logged for every question asked on this site. No IP or identity is stored.",
+    "limits_title": "Limits",
+    "limits": [
+      "Transport in the backtest is an assumed range, not a measured local rate. Live answers use the farmer's own rate.",
+      "data.gov.in history lags a day and many mandis skip days; about 30–40% of replayed decisions couldn't be scored.",
+      "The ₹50 per quintal close-call margin is a judgement call.",
+      "Only mandis in the farmer's own state are compared.",
+      "Weather beyond 7 days isn't forecast; those days are shown as having no forecast yet.",
+      "Voice accuracy on real farmer recordings is still being measured."
+    ]
+  },
+  "backtest": {
+    "loading": "Loading the stored backtest…",
+    "rate_label": "Transport cost (assumed, ₹ per quintal per km):",
+    "rate_aria": "Transport cost",
+    "window": "{n} villages, {from} to {to}",
+    "col_how": "How the mandi is picked",
+    "col_gain": "Mean gain / q",
+    "col_beat": "Beat nearest",
+    "col_regret": "Regret / q",
+    "strat": {
+      "today": "Rank on today's price",
+      "median7": "Rank on 7-day median",
+      "median7_near": "7-day median, nearer on close calls (live)"
+    },
+    "crop": {
+      "Soyabean": "Soybean",
+      "Onion": "Onion"
+    }
+  },
+  "usage": {
+    "none": "No questions logged in the last 7 days yet.",
+    "questions": "Questions",
+    "median": "Median time",
+    "p95": "95th percentile",
+    "repair": "Needed a repair",
+    "invented": "Invented numbers caught",
+    "failed": "Usage data is unavailable right now. Please try again shortly."
+  },
+  "data": {
+    "title": "Where every number comes from",
+    "sub": "Each price, forecast and distance comes from a live public API, or from a stored copy of a real response kept with its source URL and fetch time. Every answer shows both.",
+    "cols": {
+      "source": "Source",
+      "use": "Used for",
+      "licence": "Licence and terms"
+    },
+    "sources": [
+      {
+        "use": "Today's mandi prices (resource 9ef84268-…) and variety-wise price history (35985678-…)",
+        "licence": "Government Open Data License – India"
+      },
+      {
+        "use": "Daily rain forecast from two models, ECMWF IFS 0.25° and GFS",
+        "licence": "CC BY 4.0. Weather data by Open-Meteo.com"
+      },
+      {
+        "use": "Road distance and drive time from the village to each mandi",
+        "licence": "OpenStreetMap data, ODbL"
+      },
+      {
+        "use": "Coordinates for villages and mandi towns",
+        "licence": "OpenStreetMap data, ODbL. At most 1 request a second, results cached"
+      },
+      {
+        "use": "The map on each answer",
+        "licence": "ODbL, attribution on the map"
+      },
+      {
+        "use": "Speech to text in 22 Indian languages and English (saaras:v4); spoken replies in 9 (bulbul:v4-flash)",
+        "licence": "API terms"
+      },
+      {
+        "use": "Language model access, for reading the question and phrasing the answer only",
+        "licence": "API terms"
+      }
+    ],
+    "fee_title": "Mandi fee",
+    "fee_body": "In Madhya Pradesh, under the Krishi Upaj Mandi Adhiniyam 1972, section 19(2), the buyer pays the market fee and it can't be deducted from the farmer's price, so the seller's fee is zero. Other states set their own rules, so there the answer notes that the market fee is not included. Hammali and weighing charges are set by each mandi committee, so the farmer enters them if they pay them; nothing is assumed.",
+    "vehicle_title": "Vehicle rate",
+    "vehicle_body": "There's no public source for local truck and tractor hire, so the agent asks the farmer for their rate per km and how many quintals one trip carries. Both can be edited on the answer to recalculate.",
+    "fail_title": "When a source fails",
+    "fail_body": "The agent falls back to the latest real stored data and states its age, or to the other weather model, and lowers its confidence. It never fills a gap with a made-up value.",
+    "privacy_title": "Privacy",
+    "privacy_body": "Questions and the agent's steps are logged to measure speed and reliability. IP addresses and identities are not stored."
+  },
+  "about": {
+    "title": "Public data, put to work for the person who grows the crop.",
+    "p1": "India publishes daily prices from mandis across the country, and global weather models are free to use. But this data is scattered, in English, unchecked, and shaped for analysts. A farmer with 40 quintals still decides with a phone call to a trader.",
+    "p2": "Harvest Compass brings that data to one question asked in the farmer's own language, checks it before trusting it, and shows its working. It covers soybean and onion for any village in India, using the mandis that report in the farmer's state. Built for FORGE '26.",
+    "team_title": "Team",
+    "next_title": "What's next",
+    "next": [
+      "Real transport quotes per district, so first answers need one question fewer",
+      "More crops, chosen by how many mandis report each day",
+      "Mandis across state borders, not only the farmer's own state",
+      "An SMS or phone-call channel for farmers without smartphones",
+      "Mandi arrival volumes, to warn when a glut is likely to push prices down"
+    ],
+    "os_title": "Open source",
+    "os_body": "The code is public on",
+    "os_btn": "Ask a question"
+  },
+  "ask": {
+    "ask_title": "Ask about your crop",
+    "ask_sub": "Live mandi prices, road distances and two weather models, with the source of every number.",
+    "waking": "Connecting to the server. This can take up to a minute…",
+    "down": "Couldn't reach the server.",
+    "unreachable": "Couldn't reach the server. Please try again in a little while.",
+    "stt_failed": "Couldn't understand the recording. Please speak again or type.",
+    "voice_limit": "Voice input is unavailable right now. Please type your question.",
+    "mic_denied": "Microphone permission was denied. You can type your question instead.",
+    "yes_qty": "Yes, the quantity is right",
+    "yes": "Yes",
+    "answer_label": "Type or speak your answer",
+    "ask_label": "Ask about your crop, by voice or text",
+    "placeholder": "e.g. I have 40 quintals of soybean, village Sanwer, Indore…",
+    "stop": "⏹ Stop",
+    "speak": "🎤 Speak",
+    "thinking": "Thinking…",
+    "ask": "Ask",
+    "examples": "Try an example:",
+    "listen": "Listen to the answer",
+    "no_voice": "Spoken replies aren't available in {lang} yet; the answer is shown as text.",
+    "conf_high": "Confidence: high",
+    "conf_medium": "Confidence: medium",
+    "conf_low": "Confidence: low",
+    "trace": "What the agent is doing",
+    "best": "Best mandi",
+    "same_town": "in the same town",
+    "by_road": "{km} km by road",
+    "about_min": "about {min} min",
+    "net_q": "Net price / quintal",
+    "net_total": "Total net ({q} q)",
+    "bad_day": "Bad-day price / q",
+    "little_history": "too little history",
+    "price_used": "Price used {p}",
+    "median_of": "(median of last {n} reports)",
+    "latest": "(latest price)",
+    "modal_today": "today's modal price {p}",
+    "price_date": "price date {d}",
+    "days_old": "({n} days old)",
+    "nearer": "{m} pays only {p}/q more but is {km} km farther, so the nearer mandi is recommended.",
+    "runner_up": "Second:",
+    "ru_lower": "price {p} lower",
+    "ru_higher": "price {p} higher, but transport {t}/q more",
+    "ru_total": "— {p}/q less overall.",
+    "safe_days": "Safe days to harvest and transport",
+    "dry": "☀️ dry",
+    "rain": "🌧 rain possible",
+    "uncertain": " · uncertain",
+    "no_forecast": "no forecast yet (beyond 7 days)",
+    "wait_q": "Wait {n} days?",
+    "no_trend": "Not enough history to read a price trend.",
+    "trend": "From the last 14 days' trend, the price may change by about {p}/q",
+    "rain_risk": "rain risk {p}%",
+    "trend_note": "This is a trend, not a forecast.",
+    "map": "Map",
+    "compare": "Mandis compared",
+    "col_mandi": "Mandi",
+    "col_price": "Price (7 days)",
+    "col_dist": "Distance",
+    "col_transport": "Transport",
+    "col_net": "Net/q",
+    "same_town_short": "same town",
+    "costs": "Cost breakdown ({m})",
+    "c_price": "Price: {p} × {q} q = {t}",
+    "c_transport": "Transport: {trips} trips × 2 (both ways) × {km} km × {r}/km = −{t}",
+    "c_hammali": "Hammali/weighing: {v}",
+    "c_hammali_none": "not added (fill in below if you pay it; each mandi committee sets the rate)",
+    "c_fee": "The mandi fee is paid by the buyer, not deducted from the farmer (MP Krishi Upaj Mandi Adhiniyam 1972, Sec 19(2)).",
+    "c_fee_other": "Any market fee isn't included: the rules differ by state. If you pay one, add it per quintal in the charges box below.",
+    "c_net": "Net: {t}",
+    "f_rate": "Vehicle ₹/km",
+    "f_cap": "Quintals per trip",
+    "f_hammali": "Hammali/weighing ₹/q (if you pay it)",
+    "recalc": "Recalculate",
+    "excluded": "Mandis left out ({n}) — why?",
+    "sources": "Data sources",
+    "s_today": "Today's prices",
+    "s_history": "Price history",
+    "s_weather": "Weather",
+    "s_roads": "Road distance",
+    "health": "Source status",
+    "usage": "Last {d} days: {n} questions · median {p50} s, 95% within {p95} s · repaired {fb}% · invented numbers caught: {inv}",
+    "switches": "Test switches",
+    "switches_on": "({n} on)",
+    "switches_note": "The chosen source is skipped on the next question, so you can watch the agent recover.",
+    "st_live": "live",
+    "st_cache": "cache",
+    "st_stale_cache": "old cache",
+    "st_error": "failed",
+    "language": "Language",
+    "ex1": "I have 40 quintals of soybean in Sanwer village, Indore. It will be ready between 2 and 5 November. Where should I sell?",
+    "ex2": "30 quintals of onion, village Lasalgaon, Nashik. I have storage. Should I wait 5 days or sell now?",
+    "map_home": "Home",
+    "map_village": "Your village",
+    "src_mandi_prices": "Mandi prices (data.gov.in)",
+    "src_weather": "Weather (Open-Meteo)",
+    "src_routing": "Road distance (OSRM)",
+    "src_geocoding": "Place search (Nominatim)",
+    "src_database": "Cache database",
+    "src_llm": "Language model",
+    "src_voice": "Voice (Sarvam)"
+  }
+}

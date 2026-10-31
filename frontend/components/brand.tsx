@@ -1,10 +1,11 @@
 // Shared by the client header and the server footer, so it must not be a client module.
+// Labels come from the language files (common.nav.<key>).
 export const NAV = [
-  { href: "/how-it-works", label: "How it works" },
-  { href: "/results", label: "Results" },
-  { href: "/data", label: "Data & sources" },
-  { href: "/about", label: "About" },
-];
+  { href: "/how-it-works", key: "how" },
+  { href: "/results", key: "results" },
+  { href: "/data", key: "data" },
+  { href: "/about", key: "about" },
+] as const;
 
 export function Compass({ size = 28 }: { size?: number }) {
   return (
