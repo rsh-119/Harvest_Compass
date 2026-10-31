@@ -133,6 +133,8 @@ async def transcribe(audio: UploadFile, lang: Annotated[LangCode, Form()] = "en"
         lang,
     )
     if res.data is None:
+        if res.error and "VoiceLimit" in res.error:
+            raise HTTPException(429, "voice limit for today reached")
         raise HTTPException(502, f"speech-to-text failed: {res.error}")
     return {"text": res.data}
 
@@ -147,4 +149,3 @@ async def backtest_results() -> list[dict[str, Any]]:
 async def stats() -> dict[str, Any]:
     """Real per-request numbers from request_log (last 7 days): p50/p95 time, fallback rate."""
     return await request_log.stats()
-

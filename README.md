@@ -105,6 +105,7 @@ Environment variables (`.env`, never committed):
 | `DATABASE_URL` | Postgres (Neon) for the response cache and backtest results |
 | `NOMINATIM_USER_AGENT` | identifying User-Agent for OSM services |
 | `FRONTEND_ORIGIN` | allowed CORS origin, e.g. `https://<app>.vercel.app` |
+| `VOICE_DAILY_LIMIT` | live Sarvam calls allowed per day (default 60; cached replies are free) |
 | `NEXT_PUBLIC_API_URL` | (frontend) backend URL |
 
 ## Tests, backtest, grounding

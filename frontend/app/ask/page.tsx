@@ -185,8 +185,8 @@ export default function AskPage() {
           const said = await transcribe(new Blob(chunks, { type: rec.mimeType }), lang);
           setText(said);
           submit(said);
-        } catch {
-          setError(t("stt_failed"));
+        } catch (err) {
+          setError(err instanceof Error && err.message.includes("limit") ? t("voice_limit") : t("stt_failed"));
         }
       };
       rec.start();

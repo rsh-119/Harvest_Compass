@@ -3,10 +3,11 @@ Free credits are limited, so TTS audio is cached by its exact text."""
 
 import base64
 import hashlib
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
+from app.clock import today_ist
 from app.config import settings
-from app.data.cache import Sourced, cached
+from app.data.cache import Sourced, cached, get_pool
 from app.http import request_json
 from app.languages import LANGS
 
@@ -16,6 +17,53 @@ TTS_MODEL = "bulbul:v4-flash"
 STT_MODEL = "saaras:v4"
 
 
+class VoiceLimit(Exception):
+    pass
+
+
+_used: dict[date, int] = {}  # fallback when there's no database
+
+
+async def _spend() -> None:
+    """Count one live Sarvam call against today's budget, or refuse it."""
+    today, limit = today_ist(), settings.voice_daily_limit
+    if limit <= 0:
+        raise VoiceLimit("voice is switched off")
+    pool = await get_pool()
+    if pool is None:
+        if _used.get(today, 0) >= limit:
+            raise VoiceLimit(f"daily voice limit ({limit}) reached")
+        _used[today] = _used.get(today, 0) + 1
+        return
+    async with pool.connection() as conn:
+        await conn.execute(
+            "CREATE TABLE IF NOT EXISTS voice_usage (day date PRIMARY KEY, calls integer NOT NULL)"
+        )
+        # One atomic statement: only increments while under the limit.
+        cur = await conn.execute(
+            """INSERT INTO voice_usage (day, calls) VALUES (%s, 1)
+               ON CONFLICT (day) DO UPDATE SET calls = voice_usage.calls + 1
+               WHERE voice_usage.calls < %s
+               RETURNING calls""",
+            (today, limit),
+        )
+        if await cur.fetchone() is None:
+            raise VoiceLimit(f"daily voice limit ({limit}) reached")
+
+
+async def voice_used_today() -> int:
+    pool = await get_pool()
+    if pool is None:
+        return _used.get(today_ist(), 0)
+    async with pool.connection() as conn:
+        await conn.execute(
+            "CREATE TABLE IF NOT EXISTS voice_usage (day date PRIMARY KEY, calls integer NOT NULL)"
+        )
+        cur = await conn.execute("SELECT calls FROM voice_usage WHERE day = %s", (today_ist(),))
+        row = await cur.fetchone()
+    return int(row[0]) if row else 0
+
+
 def _headers() -> dict[str, str]:
     return {"api-subscription-key": settings.sarvam_api_key}
 
@@ -23,6 +71,7 @@ def _headers() -> dict[str, str]:
 async def transcribe(audio: bytes, filename: str, mime: str, lang: str = "en") -> Sourced[str]:
     """Never cached: every recording is new."""
     try:
+        await _spend()
         body = await request_json(
             "POST",
             STT_URL,
@@ -52,6 +101,7 @@ async def speak(text: str, lang: str = "hi") -> Sourced[bytes]:
     digest = hashlib.sha256(f"{TTS_MODEL}:{speaker}:{text}".encode()).hexdigest()
 
     async def fetch() -> str:
+        await _spend()  # only cache misses cost credits
         body = await request_json(
             "POST",
             TTS_URL,

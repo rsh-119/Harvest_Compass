@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     # data.gov.in returns an empty 502 to httpx's default UA, so every client must send this.
     nominatim_user_agent: str = "HarvestCompass/0.1"
     frontend_origin: str = "http://localhost:3000"
+    # Sarvam credits are limited and the voice demo must still work on judging day. Live
+    # speech calls (STT + uncached TTS) per IST day; cached replies are free. 0 = voice off.
+    voice_daily_limit: int = 60
 
     # Region and crops chosen by the M0 coverage query (67 soybean / 42 onion mandis near Indore).
     crops: list[str] = ["Soyabean", "Onion"]

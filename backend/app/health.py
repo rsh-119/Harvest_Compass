@@ -12,7 +12,7 @@ from typing import Any
 from app.config import settings
 from app.data.cache import get_pool
 from app.http import request_json
-from app.tools import mandi, routing, weather
+from app.tools import mandi, routing, voice, weather
 
 _memo: tuple[float, dict[str, Any]] | None = None
 
@@ -71,6 +71,14 @@ async def status() -> dict[str, Any]:
     out: dict[str, Any] = dict(zip(names, results, strict=True))
     out["geocoding"] = {"ok": True, "note": "not probed (Nominatim policy); cached lookups"}
     out["llm"] = {"ok": bool(settings.openrouter_api_key), "note": "configured, not probed"}
-    out["voice"] = {"ok": bool(settings.sarvam_api_key), "note": "configured, not probed"}
+    try:
+        used = await voice.voice_used_today()
+        left = max(settings.voice_daily_limit - used, 0)
+        out["voice"] = {
+            "ok": bool(settings.sarvam_api_key) and left > 0,
+            "note": f"not probed; {used} of {settings.voice_daily_limit} live calls used today",
+        }
+    except Exception as e:
+        out["voice"] = {"ok": bool(settings.sarvam_api_key), "note": f"usage unknown: {e}"[:200]}
     _memo = (time.monotonic(), out)
     return out

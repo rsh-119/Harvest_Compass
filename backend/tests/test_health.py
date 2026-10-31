@@ -36,3 +36,28 @@ def test_rate_limit_blocks_the_eleventh_call_in_a_minute() -> None:
     assert all(_allow("t", 10, 60, now=100 + i) for i in range(10))
     assert not _allow("t", 10, 60, now=110)
     assert _allow("t", 10, 60, now=161)  # first call has left the window
+
+
+def test_voice_budget_refuses_after_limit(monkeypatch: pytest.MonkeyPatch) -> None:
+    import asyncio
+
+    from app.tools import voice
+
+    async def no_db() -> None:
+        return None
+
+    monkeypatch.setattr(voice, "get_pool", no_db)
+    monkeypatch.setattr(voice.settings, "voice_daily_limit", 2)
+    voice._used.clear()
+
+    async def spend_three() -> int:
+        ok = 0
+        for _ in range(3):
+            try:
+                await voice._spend()
+                ok += 1
+            except voice.VoiceLimit:
+                pass
+        return ok
+
+    assert asyncio.run(spend_three()) == 2
