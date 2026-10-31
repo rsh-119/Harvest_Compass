@@ -1,140 +1,180 @@
-# Harvest Compass — हार्वेस्ट कम्पास
+# Harvest Compass
 
-**Which mandi to sell in, and which days are safe to harvest and transport.** A farmer anywhere in India asks in their own language, by voice or text. An agent pulls live mandi prices, two weather models and real road distances, checks the data, and replies in plain language, spoken where a voice exists. It shows every step, every source, and every number's origin.
+An AI agent that tells Indian farmers which mandi pays the most after transport costs, and which days are dry enough to harvest and move the crop. Farmers ask by voice or text in English or any of the 22 scheduled Indian languages.
 
-Built for FORGE '26. Region: all of India. The farmer's state is read from their village on OpenStreetMap, and that state's mandis within 150 km are compared (widened to 250 km when data is thin). Crops: the 80 commodities data.gov.in reports most often (wheat, paddy, maize, soybean, onion, potato, tomato, pulses, oilseeds, cotton, vegetables and fruit), matched from the farmer's own word ("dhan", "gehun", "arhar"). "Rice" means paddy, since that's what farmers sell at the mandi. Vegetables and fruit get a shorter drive limit. The backtest covers soybean and onion in Madhya Pradesh.
+## Problem
 
-## The problem
-A farmer with 40 quintals of soybean usually sells at the nearest mandi, or wherever a trader says. Prices differ between mandis, and so does the transport cost to reach them. Some published prices are stale, or are outliers from one odd lot. Rain on harvest or transport day ruins crop. The information is public but scattered, in English, and unchecked.
+Most farmers sell at the nearest mandi or wherever a trader suggests. Prices vary between mandis, but so does the cost of reaching them, so the highest listed price is often not the best deal. The public price data that could help is scattered, published in English, often several days old, and sometimes distorted by a single unusual lot. Rain on harvest or transport day damages the crop, and forecasts are rarely presented in a form a farmer can act on.
 
-## What it does
-- **The farmer's own language, English by default.** Pick from English and the 22 scheduled Indian languages; the whole site switches. English and Hindi page text is written by hand; the other 21 are machine-translated once by `backend/scripts/translate_ui.py` (numbers and placeholders checked) and saved in `frontend/locales/`. The agent understands the question and answers in that language. Voice input works in all of them; spoken replies work in the 9 that Sarvam's bulbul:v4-flash has voices for (English, Hindi, Bengali, Marathi, Telugu, Tamil, Gujarati, Kannada, Punjabi).
-- **Asks instead of guessing.** Ambiguous village ("which Rampur?"), sacks without a weight, missing vehicle hire, an unlikely quantity: one short question each, never a made-up value.
-- **Net ₹ per quintal, not headline price.** Each mandi's 7-day median modal price (3+ reports, else its latest) minus round-trip transport at the farmer's own rate, across all reachable mandis. If a farther mandi wins by ₹50/quintal or less, the nearer one is recommended and the skipped one is named. Drive-time caps are tighter for onion.
-- **Audits the data visibly.** Rejects stale (>3 days), inconsistent (min > max) and outlier prices (robust z-score against the mandi's own 30 days and the region), and keeps like-for-like variety and grade. Each rejected mandi is named with its reason.
-- **Repairs itself.** Today's price feed down → each mandi's latest report, with its age. One weather model down → the other, with days marked uncertain. Too few usable mandis → widen the radius. All shown live in the trace.
-- **Safe days.** ECMWF and GFS daily rain from Open-Meteo. A day is "safe" only when both models agree it's dry, and the transport day after it counts too.
-- **"What if I wait N days?"** The 14-day price trend at the best mandi plus rain risk, labelled *trend, not forecast*.
-- **Grounded answers.** The LLM only phrases facts we computed. A validator rejects any number not in the facts, and any change to the mandi's name. It retries once, then falls back to a fixed template.
+## Solution
+
+The farmer describes their crop, quantity and village. The agent:
+
+1. Extracts a structured request from the question and asks one short follow-up when something is missing or ambiguous (vehicle hire rate, sack weight, which of two villages with the same name).
+2. Fetches current and historical mandi prices, two weather models and road distances in parallel.
+3. Audits the prices and excludes stale, inconsistent, outlier and non-comparable entries, recording the reason for each.
+4. Ranks every reachable mandi in the farmer's state by **net ₹ per quintal**: the 7-day median price minus round-trip transport at the farmer's own vehicle rate.
+5. Marks harvest days as safe only when both weather models expect no rain, including the transport day that follows.
+6. Replies in the farmer's language, as text and, where a voice is available, as speech.
+
+The language model is used only to read the question and to phrase the reply. Every number is computed by deterministic code, and a validator rejects any reply that contains a number or mandi name not present in the computed facts.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-  U[Farmer: Hindi voice / text] -->|mic| STT[Sarvam STT]
+  F[Farmer] -->|voice| STT[Sarvam STT]
   STT --> UI
-  U --> UI[Next.js UI<br/>trace · map · costs]
-  UI -->|POST /ask, SSE| API[FastAPI]
+  F -->|text| UI[Next.js frontend]
+  UI -->|POST /ask · SSE| API[FastAPI]
   API --> G
+
   subgraph G[LangGraph agent]
     direction LR
-    UN[understand<br/>LLM → strict intent] --> PL[plan<br/>rules] --> EX[execute<br/>parallel tools] --> AU[audit<br/>pure rules]
-    AU -->|too few mandis| RP[repair<br/>widen radius] --> EX
-    AU --> CO[compute<br/>pure scoring] --> XP[explain<br/>LLM + number & name check]
+    UN[Understand<br/>LLM] --> PL[Plan<br/>rules] --> EX[Execute<br/>parallel tools] --> AU[Audit<br/>rules]
+    AU -->|too few usable mandis| RP[Repair<br/>widen radius] --> EX
+    AU --> CO[Compute<br/>scoring] --> XP[Explain<br/>LLM + validator]
   end
-  EX --> M[data.gov.in<br/>today + history]
+
+  EX --> M[data.gov.in<br/>mandi prices]
   EX --> W[Open-Meteo<br/>ECMWF + GFS]
-  EX --> R[OSRM road distances]
-  EX --> N[Nominatim geocoding]
-  M & W & R & N --- C[(Postgres cache<br/>source_url + fetched_at)]
+  EX --> R[OSRM<br/>road routing]
+  EX --> N[Nominatim<br/>geocoding]
+  M & W & R & N --- C[(Postgres cache)]
   XP --> TTS[Sarvam TTS] --> UI
 ```
 
-- **Backend:** FastAPI, LangGraph, httpx, Pydantic v2, psycopg 3 (Neon Postgres). `backend/app/`: `tools/` (one file per source), `scoring/` (pure functions), `agent/` (graph and nodes), `backtest/`.
-- **Frontend:** Next.js 15, TypeScript, Tailwind, Leaflet. Pages: `/` home, `/ask` the agent (Hindi-first), `/how-it-works`, `/results` (live backtest, grounding, usage stats), `/data` (sources and licences), `/about`. Light glass design: Baloo 2 + Mukta, a sky-to-field gradient.
-- **LLM:** `deepseek/deepseek-v4.1-flash` via OpenRouter, used only for extracting intent and phrasing Hindi. It never computes a number. Chosen by test: see Results.
+Each node streams trace events to the frontend over Server-Sent Events, so the user sees every step as it runs.
 
-## Results (measured, 31 Oct 2026)
-**Backtest** (`backend/app/backtest/run_backtest.py`). 30 real OSM villages, 60 days (31 Aug–30 Oct 2026), real data.gov.in history:
-- Each day, decide with only that day's data, using the agent's own audit and ranking.
-- Realise the price at the chosen mandi the next day.
-- Compare with the nearest mandi.
+| Step | Implementation | Responsibility |
+|---|---|---|
+| Understand | LLM (forced tool call) | Convert free text into a typed intent: crop, quantity, village, harvest window, vehicle rate. Ask a clarifying question when required. |
+| Plan | Rules | Choose which data sources the question needs. |
+| Execute | Async tools | Call all sources concurrently with timeouts and one retry. Cache each response with its source URL and fetch time. |
+| Audit | Rules | Reject prices older than 3 days, with min > max, or that are robust z-score outliers against the mandi's own 30-day history and the region; keep variety and grade comparable. |
+| Repair | Rules | Fall back to each mandi's latest stored report if today's feed fails, to the remaining weather model if one fails, or widen the search radius from 150 km to 250 km. |
+| Compute | Pure functions | Net price per quintal, conservative "bad-day" price, harvest-day safety, and the 14-day price trend for "should I wait?" questions. If a farther mandi wins by ₹50/quintal or less, the nearer one is recommended. |
+| Explain | LLM + validator | Phrase the result in the farmer's language. Replies with unknown numbers or altered mandi names are rejected, retried once, then replaced by a fixed template. |
 
-Transport is a swept assumption (₹0.5/1/2 per quintal-km), not a measured rate. Mean gain vs nearest mandi, ₹/quintal:
+## Tech stack
 
-| | Rank on today's price | 7-day median | 7-day median + nearer on close calls (**live**) |
+| Layer | Technology |
+|---|---|
+| Frontend | Next.js 15, React 19, TypeScript, Tailwind CSS 4, Leaflet |
+| Backend | Python 3.11, FastAPI, LangGraph, Pydantic v2, httpx |
+| Database | PostgreSQL (Neon), psycopg 3: response cache and backtest results |
+| LLM | `deepseek/deepseek-v4.1-flash` via OpenRouter |
+| Speech | Sarvam AI: `saaras:v4` speech-to-text (23 languages), `bulbul:v4-flash` text-to-speech (9 languages) |
+| Hosting | Render (backend, Docker), Vercel (frontend) |
+
+## Project structure
+
+```
+backend/
+  app/
+    agent/        LangGraph graph, state and nodes (understand, plan, execute, audit, repair, compute, explain)
+    tools/        one module per external source: mandi, weather, routing, geocode, voice
+    scoring/      net profit, harvest window, trend, audit rules (pure functions)
+    backtest/     historical replay of the ranking strategy
+    data/         cache, regions, crop synonyms, request log
+    main.py       FastAPI app: /ask (SSE), /transcribe, /health, /stats, /backtest
+  scripts/        CLI tools: ask, smoke test, grounding test, cache warm-up, UI translation
+  tests/          pytest suite
+frontend/
+  app/            pages: home, ask, how-it-works, results, data, about
+  components/     shared UI (map, flow diagram, backtest and usage cards)
+  lib/            API client, i18n
+  locales/        UI text for 23 languages (English and Hindi hand-written, others generated)
+```
+
+## Data sources
+
+| Source | Used for | Licence |
+|---|---|---|
+| [data.gov.in](https://data.gov.in) (Agmarknet): daily prices `9ef84268-…`, variety-wise history `35985678-…` | Mandi prices | Government Open Data License – India |
+| [Open-Meteo](https://open-meteo.com): ECMWF IFS 0.25°, GFS | Rain forecast | CC BY 4.0 |
+| [OSRM](https://project-osrm.org) | Road distance and drive time | ODbL (OpenStreetMap data) |
+| [Nominatim](https://nominatim.org) | Village and mandi coordinates | ODbL; ≤ 1 request/s, results cached |
+| [OpenStreetMap](https://www.openstreetmap.org/copyright) tiles | Map | ODbL |
+| [Sarvam AI](https://www.sarvam.ai) | Speech input and output | API terms |
+| [OpenRouter](https://openrouter.ai) | LLM access | API terms |
+
+All prices, forecasts and distances come from these APIs or from cached copies of their responses, stored with `source_url` and `fetched_at`.
+
+**Mandi fee.** In Madhya Pradesh the market fee is paid by the buyer (Krishi Upaj Mandi Adhiniyam 1972, Sec. 19(2)), so the seller's fee is zero. Other states' rules are not yet encoded, and the answer states that the fee is excluded. Hammali and weighing charges vary by mandi committee and are entered by the user.
+
+## Evaluation
+
+**Backtest** (`app/backtest/run_backtest.py`): 30 villages in Madhya Pradesh, 60 days (31 Aug – 30 Oct 2026), real data.gov.in history. Each day the strategy chooses a mandi using only data available that day, and is scored on the next day's price against the nearest mandi. Mean gain in ₹/quintal at assumed transport rates of ₹0.5 / 1 / 2 per quintal-km:
+
+| Crop | Today's price | 7-day median | 7-day median + nearer on close calls (live) |
 |---|---|---|---|
 | Onion | +437 / +401 / +379 | +540 / +482 / +429 | +511 / +470 / +413 |
 | Soybean | +27 / −32 / −73 | +61 / +15 / −4 | +69 / +39 / −5 |
 
-Choosing the mandi pays for onion, where prices differ a lot between mandis. For soybean, prices are nearly uniform across MP, so the nearest mandi is about as good. Ranking on a 7-day median beats one day's price everywhere, because single-day spikes often don't last until the farmer arrives. Preferring the nearer mandi on close calls (≤ ₹50/q) helps soybean and costs onion ₹12–29/q on average, for shorter trips. About 30% of decisions couldn't be scored, because the chosen mandi didn't report the next day.
+Choosing the mandi matters for onion, where prices vary widely between mandis. Soybean prices are nearly uniform across the state, so the nearest mandi is usually close to optimal. About 30% of decisions could not be scored because the chosen mandi did not report the next day.
 
-**Grounding test** (`backend/scripts/grounding.py`), 20 varied Hindi/Hinglish questions:
+**Grounding** (`scripts/grounding.py`): 20 varied Hindi and Hinglish questions run through the full agent. 19 answered, 1 correctly asked for clarification; 0 invented numbers; median latency 11.4 s, p95 15.3 s.
 
-| Model | Answered (of 20) | Invented numbers | Median / p95 time |
-|---|---|---|---|
-| deepseek-v4.1-flash | 19 | 0 | 11.4 s / 15.3 s |
+## Getting started
 
-The 20th question correctly asks to confirm the tahsil (Mahidpur exists in OSM only as a tahsil). In a comparison, GPT-5.6 Terra also invented 0 numbers but transliterated a mandi name into the wrong town (Badnagar → "बदनावर"). Hence the name check, and deepseek as the demo model. Claude Sonnet 5.5 couldn't run: it doesn't support the forced tool call we use.
-
-**Voice test:** 10 real recordings, results to be added.
-
-## Data sources and licences
-| Source | Used for | Licence / terms |
-|---|---|---|
-| [data.gov.in](https://data.gov.in) — Daily mandi prices (resource `9ef84268-…`) and variety-wise history (`35985678-…`) | prices | Government Open Data License – India |
-| [Open-Meteo](https://open-meteo.com) — ECMWF IFS 0.25° and GFS | rain forecast | CC BY 4.0, attribution shown in the UI |
-| [OSRM](https://project-osrm.org) public router | road km and drive time | OSM data, ODbL |
-| [Nominatim](https://nominatim.org) | village and mandi coordinates | OSM data, ODbL. Max 1 request/s, identifying User-Agent, results cached |
-| [OpenStreetMap tiles](https://www.openstreetmap.org/copyright) | map | ODbL, attribution shown |
-| [Sarvam AI](https://www.sarvam.ai) — saaras:v4, bulbul:v4-flash | Hindi speech in and out | API terms |
-| [OpenRouter](https://openrouter.ai) | LLM access | API terms |
-
-Mandi fee: in Madhya Pradesh, under the Krishi Upaj Mandi Adhiniyam 1972, Sec 19(2), the buyer pays the market fee, so the seller's fee is 0. Other states' rules aren't verified, so there the answer says the fee isn't included. Hammali/tulai rates are set by each mandi committee, so they're an editable field, not a default.
-
-**No dummy data.** Every price, forecast and distance comes from a live API or a cache of a real response, stored with `source_url` and `fetched_at`. The only reference lists in code are names: crop synonyms and OSM spellings of mandi towns.
-
-## Run it locally
-Needs Python 3.11+, [uv](https://docs.astral.sh/uv/), Node 20+.
+Requirements: Python 3.11+, [uv](https://docs.astral.sh/uv/), Node.js 20+.
 
 ```bash
-cp .env.example .env          # fill in keys (names only in the example)
-cd backend && uv sync
-uv run uvicorn app.main:app --reload            # Windows: add --loop asyncio:SelectorEventLoop
-cd ../frontend && npm install && npm run dev    # http://localhost:3000
+cp .env.example .env
+
+# Backend
+cd backend
+uv sync
+uv run uvicorn app.main:app --reload    # on Windows add: --loop asyncio:SelectorEventLoop
+
+# Frontend (new terminal)
+cd frontend
+npm install
+npm run dev                             # http://localhost:3000
 ```
 
-Environment variables (`.env`, never committed):
+### Environment variables
 
-| Name | What |
+| Variable | Description |
 |---|---|
 | `DATA_GOV_IN_API_KEY` | data.gov.in API key |
-| `SARVAM_API_KEY` | Sarvam speech |
-| `OPENROUTER_API_KEY` | LLM (set a spending cap in the dashboard) |
-| `LLM_MODEL` | `deepseek/deepseek-v4.1-flash` |
-| `DATABASE_URL` | Postgres (Neon) for the response cache and backtest results |
-| `NOMINATIM_USER_AGENT` | identifying User-Agent for OSM services |
-| `FRONTEND_ORIGIN` | allowed CORS origin, e.g. `https://<app>.vercel.app` |
-| `VOICE_DAILY_LIMIT` | live Sarvam calls allowed per day (default 60; cached replies are free) |
-| `NEXT_PUBLIC_API_URL` | (frontend) backend URL |
+| `SARVAM_API_KEY` | Sarvam AI API key |
+| `OPENROUTER_API_KEY` | OpenRouter API key |
+| `LLM_MODEL` | Model ID, e.g. `deepseek/deepseek-v4.1-flash` |
+| `DATABASE_URL` | PostgreSQL connection string |
+| `NOMINATIM_USER_AGENT` | Identifying User-Agent for OpenStreetMap services |
+| `FRONTEND_ORIGIN` | Allowed CORS origin |
+| `VOICE_DAILY_LIMIT` | Daily cap on live Sarvam calls (default 60) |
+| `NEXT_PUBLIC_API_URL` | Backend URL used by the frontend |
 
-## Tests, backtest, grounding
+## Testing
+
 ```bash
-bash check.sh                                        # ruff, mypy --strict, pytest, eslint, tsc
+bash check.sh                                   # ruff, mypy --strict, pytest, eslint, tsc
+
 cd backend
-uv run python -m app.backtest.run_backtest           # stores results in Postgres (table backtest_runs)
-uv run python -m scripts.grounding                   # 20 questions, counts invented numbers
-uv run python -m scripts.ask "40 क्विंटल सोयाबीन, गाँव सांवेर, किराया 35 रुपये किलोमीटर, गाड़ी में 30 क्विंटल" --fault weather_ecmwf
-uv run python -m scripts.smoke                       # one live call to every source
-uv run python -m scripts.warm                        # cache prices and mandi locations for every state
+uv run python -m scripts.smoke                  # one live call to every data source
+uv run python -m scripts.ask "40 quintal soybean, village Sanwer, Indore, vehicle ₹35/km, 30 q per trip"
+uv run python -m scripts.ask "..." --fault weather_ecmwf    # simulate a source failure
+uv run python -m scripts.grounding              # invented-number check over 20 questions
+uv run python -m app.backtest.run_backtest      # results stored in the backtest_runs table
+uv run python -m scripts.warm                   # pre-cache prices and mandi locations for all states
 ```
 
-## Deploy
-- **Backend → Render:** web service, root `backend`, Docker, free plan. Set the env vars above.
-- **Frontend → Vercel:** root `frontend`, with `NEXT_PUBLIC_API_URL` set.
-- **Keep awake:** a free scheduler (e.g. cron-job.org) GETs `/health` every 10 minutes. `/health` makes tiny live checks of each source, remembered for 60 s.
-- **Credit protection:** 10 paid requests a minute per visitor, 300 an hour in total.
+## Deployment
 
-## Limitations (honest)
-- Transport rates come from the farmer. The backtest sweeps assumed rates, because we have no measured local rates yet.
-- data.gov.in history lags a day, and many mandis don't report every day (~30% of backtest decisions were unscorable).
-- Some towns exist in OSM only as a tahsil (Badnagar, Mahidpur). We ask the farmer to confirm the tahsil rather than guess. 3 of 243 mandis are still unmapped and are excluded by name.
-- The ₹50/quintal "close call" margin is a judgement call, not measured data.
-- Weather beyond 7 days isn't forecast; those days are shown as "no forecast yet".
-- In-memory rate limiting holds for one backend instance.
-- Only mandis in the farmer's own state are compared; a cheaper mandi just across a state border isn't considered yet.
-- The first question from a state whose mandis aren't cached yet takes a few minutes (OpenStreetMap allows 1 lookup a second). `uv run python -m scripts.warm` fills the cache for every state.
-- Some private markets (common in Maharashtra) have long names that can't be found on the map; they're excluded by name.
+- **Backend:** Render web service, root `backend`, Docker. Set the environment variables above.
+- **Frontend:** Vercel, root `frontend`, with `NEXT_PUBLIC_API_URL` pointing to the backend.
+- `/health` runs lightweight checks against each source (cached for 60 s) and can be polled to keep a free instance awake.
+- Rate limits: 10 paid requests per minute per client, 300 per hour overall.
 
-## Team
-_(add names and roles)_
+## Limitations
+
+- Transport cost depends on the rate the farmer provides; the backtest uses assumed rates.
+- data.gov.in history lags by a day and many mandis do not report daily.
+- Only mandis within the farmer's state are compared.
+- Weather forecasts cover 7 days; later dates are shown without a forecast.
+- Market fees are modelled for Madhya Pradesh only.
+- Rate limiting is in-memory and assumes a single backend instance.
+- The first query from a state with no cached mandi locations is slow, because Nominatim allows one lookup per second; `scripts.warm` pre-fills the cache.
