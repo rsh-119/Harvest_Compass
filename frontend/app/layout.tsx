@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
-import { Mukta } from "next/font/google";
+import { Baloo_2, Mukta } from "next/font/google";
+import SiteFooter from "@/components/SiteFooter";
+import SiteHeader from "@/components/SiteHeader";
 import "./globals.css";
 
 // Mukta covers Devanagari and Latin, so Hindi and numbers share one typeface.
@@ -8,18 +10,29 @@ const mukta = Mukta({
   subsets: ["devanagari", "latin"],
   weight: ["400", "600", "700"],
 });
+// Baloo 2 for headlines: rounded, like hand-painted mandi and truck signage. Also Devanagari.
+const baloo = Baloo_2({
+  variable: "--font-baloo",
+  subsets: ["devanagari", "latin"],
+  weight: ["600", "700", "800"],
+});
 
 export const metadata: Metadata = {
-  title: "Harvest Compass",
-  description: "कौन सी मंडी, कौन सा दिन — which mandi to sell in and which days to harvest",
+  title: { default: "Harvest Compass — कौन सी मंडी, कौन सा दिन", template: "%s · Harvest Compass" },
+  description:
+    "A Hindi voice agent for soybean and onion farmers in Madhya Pradesh: the mandi that pays most after transport, and dry days to harvest. Live public data, checked and shown.",
 };
 
-export const viewport: Viewport = { width: "device-width", initialScale: 1 };
+export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#eef5fc" };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="hi">
-      <body className={`${mukta.variable} font-sans antialiased`}>{children}</body>
+      <body className={`${mukta.variable} ${baloo.variable} flex flex-col font-sans antialiased`}>
+        <SiteHeader />
+        <div className="flex-1">{children}</div>
+        <SiteFooter />
+      </body>
     </html>
   );
 }

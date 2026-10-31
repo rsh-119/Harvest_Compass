@@ -41,7 +41,7 @@ flowchart LR
 ```
 
 - **Backend:** FastAPI, LangGraph, httpx, Pydantic v2, psycopg 3 (Neon Postgres). `backend/app/`: `tools/` (one file per source), `scoring/` (pure functions), `agent/` (graph and nodes), `backtest/`.
-- **Frontend:** Next.js 15, TypeScript, Tailwind, Leaflet. `frontend/app/page.tsx`, `components/`, `lib/api.ts`.
+- **Frontend:** Next.js 15, TypeScript, Tailwind, Leaflet. Pages: `/` home, `/ask` the agent (Hindi-first), `/how-it-works`, `/results` (live backtest, grounding, usage stats), `/data` (sources and licences), `/about`. Light glass design: Baloo 2 + Mukta, a sky-to-field gradient.
 - **LLM:** `deepseek/deepseek-v4.1-flash` via OpenRouter, used only for extracting intent and phrasing Hindi. It never computes a number. Chosen by test: see Results.
 
 ## Results (measured, 31 Oct 2026)

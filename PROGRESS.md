@@ -304,3 +304,12 @@ Playwright on localhost, 390×844:
 
   - Onion's "today" numbers moved by under ₹11 from the earlier run, because the cached history refreshed.
 - **Reflect:** the near rule helps soybean (prices are uniform, so distance matters more) and costs onion ₹12–29/q for shorter trips. Mean regret at ₹1/q-km: soybean 344 (best of the three), onion 315 (same as median7).
+
+## Loop: request log + multi-page site (31 Oct)
+- **Request log:** every /ask is stored in Postgres `request_log` (time taken, outcome, repair flag, invented-number count, full trace; no IP). `GET /stats` returns real p50/p95, repair rate and errors for the last 7 days. It shows on the Results page and in the ask page's source panel.
+- **Site (team request: a production-grade multi-page site, light glassy gradient):**
+  - Pages: `/` home, `/ask` (the agent), `/how-it-works`, `/results`, `/data`, `/about`.
+  - Glass header with a mobile menu, and a shared footer with attributions.
+  - Every number on the marketing pages is either read live from `/backtest` and `/stats`, or is a dated measurement from this log. No testimonials, logos or invented figures.
+  - The team section on `/about` appears once `TEAM` in `app/about/page.tsx` is filled in.
+- **Check:** tsc, eslint and the production build pass. Visually checked with Playwright at 1366 px and 390 px: home, results (live backtest), and ask with a real onion question end to end (answer, map, table, costs).

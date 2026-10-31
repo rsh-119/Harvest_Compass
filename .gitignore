@@ -3,6 +3,7 @@ __pycache__/
 .venv/
 node_modules/
 .next/
+.next-check/
 .coverage
 .playwright-mcp/
 

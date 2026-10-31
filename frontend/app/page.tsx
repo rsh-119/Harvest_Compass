@@ -1,664 +1,185 @@
-"use client";
+import Link from "next/link";
+import LiveNumbers from "@/components/LiveNumbers";
 
-import dynamic from "next/dynamic";
-import BacktestCard from "@/components/BacktestCard";
-import { useEffect, useRef, useState } from "react";
-import {
-  ask,
-  health,
-  stats,
-  type Stats,
-  type Health,
-  transcribe,
-  type AskBody,
-  type Clarify,
-  type Final,
-  type MandiRow,
-  type Params,
-  type Place,
-  type Result,
-  type TraceEvent,
-} from "@/lib/api";
-
-const MandiMap = dynamic(() => import("@/components/MandiMap"), { ssr: false });
-
-// No vehicle defaults: the agent asks. Other charges start at 0 = "none entered" (labelled so).
-const DEFAULT_PARAMS: Params = { other_charges_per_q: 0 };
-
-const EXAMPLES = [
-  "मेरे पास 40 क्विंटल सोयाबीन है, गाँव सांवेर, इंदौर। फसल 2 से 5 नवंबर के बीच तैयार होगी। कहाँ बेचूँ?",
-  "30 क्विंटल प्याज़ है, गाँव महू, इंदौर। रखने की जगह है, 5 दिन रुकूँ या अभी बेचूँ?",
+// What the agent does for one question, in order. Labels only: no example numbers.
+const STEPS = [
+  { hi: "सवाल समझा", en: "Understands crop, quantity, village" },
+  { hi: "योजना बनाई", en: "Plans which sources to call" },
+  { hi: "भाव, मौसम, दूरी लाया", en: "Fetches prices, two weather models, road km in parallel" },
+  { hi: "डेटा जाँचा", en: "Rejects stale, odd and mismatched prices" },
+  { hi: "ज़रूरत हो तो रास्ता बदला", en: "Repairs the plan if a source fails" },
+  { hi: "खर्च काटकर हिसाब", en: "Ranks mandis by net ₹ per quintal" },
+  { hi: "हिंदी में जवाब, आवाज़ में", en: "Answers in spoken Hindi" },
 ];
 
-const rupee = (n: number) => "₹" + Math.round(n).toLocaleString("en-IN");
-const hiDay = (iso: string) =>
-  new Date(iso + "T00:00:00").toLocaleDateString("hi-IN", { weekday: "short", day: "numeric", month: "long" });
-const hiTime = (iso: string | null | undefined) =>
-  iso ? new Date(iso).toLocaleString("hi-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" }) : "—";
-const distance = (m: MandiRow) => (m.road_km < 1 ? "उसी कस्बे में (same town)" : `${m.road_km} km सड़क से`);
+const GETS = [
+  {
+    title: "खर्च काटकर आपके हाथ में",
+    en: "The mandi that pays most after round-trip transport at the farmer's own vehicle rate, not the one with the highest headline price.",
+  },
+  {
+    title: "कटाई के सुरक्षित दिन",
+    en: "Days inside the harvest window when ECMWF and GFS both expect it to stay dry, and the transport day after.",
+  },
+  {
+    title: "रुकूँ या बेचूँ?",
+    en: "What waiting three days might do, from the real 14-day price trend and rain risk, labelled as a trend, not a forecast.",
+  },
+  {
+    title: "पूछता है, अंदाज़ा नहीं लगाता",
+    en: "Which Rampur? How many kg in a sack? What does the vehicle cost? One short question instead of a made-up value.",
+  },
+];
 
-const EVENT_ICON: Record<string, string> = {
-  understand: "👂",
-  clarify: "❓",
-  plan: "🧭",
-  tool_call: "📡",
-  tool_result: "📥",
-  audit_reject: "🚫",
-  audit_flag: "⚠️",
-  repair: "🔧",
-  compute: "🧮",
-  decision: "✅",
-  explain: "🗣️",
-  error: "❌",
-};
-const STATUS_HI: Record<string, string> = { live: "लाइव", cache: "कैश", stale_cache: "पुराना कैश", error: "विफल" };
-const CONF_HI = { high: "भरोसा: ऊँचा", medium: "भरोसा: मध्यम", low: "भरोसा: कम" };
-const CONF_CLS = {
-  high: "bg-leaf-100 text-leaf-800",
-  medium: "bg-amber-100 text-amber-900",
-  low: "bg-red-100 text-red-800",
-};
+// Real lines from the agent's trace, run on 31 Oct 2026 for 40 q soybean near Ujjain.
+const AUDIT_LINES = [
+  "Badnagar APMC: Price is 25 days old (limit 3)",
+  "Badnagar APMC: Modal 5985 is far from usual (median 6900); treated as suspect",
+  "Maksi APMC: Yellow/FAQ is not directly comparable with Soyabeen/FAQ",
+  "Chhapiheda APMC: Could not find Chhapiheda APMC on the map; excluded",
+];
+
+const SOURCES = ["data.gov.in mandi prices", "Open-Meteo · ECMWF + GFS", "OSRM road routing", "OpenStreetMap Nominatim", "Sarvam speech"];
 
 export default function Home() {
-  const [text, setText] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [trace, setTrace] = useState<TraceEvent[]>([]);
-  const [final, setFinal] = useState<Final | null>(null);
-  const [pending, setPending] = useState<Clarify | null>(null); // question we're waiting on
-  const [params, setParams] = useState<Params>(DEFAULT_PARAMS);
-  const [error, setError] = useState<string | null>(null);
-  const [recording, setRecording] = useState(false);
-  const recorder = useRef<MediaRecorder | null>(null);
-  const lastText = useRef("");
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [server, setServer] = useState<"checking" | "waking" | "up" | "down">("checking");
-  const [srcHealth, setSrcHealth] = useState<Health | null>(null);
-  const [faults, setFaults] = useState<string[]>([]);
-
-  useEffect(() => {
-    // Free hosting sleeps when idle: say so if the first ping is slow, instead of looking broken.
-    const slow = setTimeout(() => setServer((s) => (s === "checking" ? "waking" : s)), 2500);
-    health()
-      .then((h) => {
-        setSrcHealth(h);
-        setServer("up");
-      })
-      .catch(() => setServer("down"))
-      .finally(() => clearTimeout(slow));
-    return () => clearTimeout(slow);
-  }, []);
-
-  function play(url: string) {
-    new Audio(url).play().catch(() => {}); // autoplay blocked: the speaker button still works
-  }
-
-  async function run(body: AskBody) {
-    setBusy(true);
-    setError(null);
-    setTrace([]);
-    setAudioUrl(null);
-    try {
-      await ask({ ...body, params: { ...params, ...body.params }, faults, speak: true }, (e) => {
-        if (e.event === "audio") {
-          const bytes = Uint8Array.from(atob(String((e as TraceEvent).wav_b64)), (c) => c.charCodeAt(0));
-          const url = URL.createObjectURL(new Blob([bytes], { type: "audio/wav" }));
-          setAudioUrl(url);
-          play(url);
-        } else if (e.event === "final") {
-          const f = e as Final;
-          setFinal(f);
-          setPending(f.clarify);
-          if (f.result) setParams((p) => ({ ...p, ...f.result!.costs })); // show what was used
-        } else {
-          setTrace((t) => [...t, e as TraceEvent]);
-          if (e.event === "error") setError((e as TraceEvent).hi || (e as TraceEvent).en);
-        }
-      });
-    } catch (err) {
-      const msg = err instanceof Error && err.message.includes("—") ? err.message : null; // our 429 text
-      setError(msg ?? "सर्वर से संपर्क नहीं हो पाया। थोड़ी देर बाद फिर कोशिश करें। (backend unreachable)");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  function submit(t = text) {
-    const q = t.trim();
-    if (!q || busy) return;
-    const body: AskBody = { text: q };
-    if (pending && !pending.unsupported) {
-      // Answering our question: carry the intent forward instead of starting over.
-      body.previous = pending.intent;
-      body.question = pending.hi;
-      body.place = pending.place;
-      const kg = parseFloat(q.replace(/[^\d.]/g, ""));
-      if (pending.needs === "bori_kg" && kg > 0) {
-        body.params = { ...params, bori_kg: kg };
-        setParams(body.params); // keep it for the next question in this conversation
-      }
-    } else {
-      lastText.current = q;
-    }
-    setText("");
-    run(body);
-  }
-
-  function confirmPlace(p: Place) {
-    run({ text: lastText.current, previous: pending?.intent, place: p });
-  }
-
-  function confirmQty() {
-    const p = { ...params, qty_confirmed: true };
-    setParams(p);
-    run({ text: lastText.current, previous: pending?.intent, place: pending?.place, params: p });
-  }
-
-  function recalc() {
-    if (!final?.intent || !final.place) return;
-    run({ text: lastText.current, previous: final.intent, place: final.place });
-  }
-
-  async function toggleMic() {
-    if (recording) {
-      recorder.current?.stop();
-      return;
-    }
-    setError(null);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const rec = new MediaRecorder(stream);
-      const chunks: Blob[] = [];
-      rec.ondataavailable = (e) => chunks.push(e.data);
-      rec.onstop = async () => {
-        stream.getTracks().forEach((tr) => tr.stop());
-        setRecording(false);
-        try {
-          const said = await transcribe(new Blob(chunks, { type: rec.mimeType }));
-          setText(said);
-          submit(said);
-        } catch {
-          setError("आवाज़ समझ नहीं आई। कृपया फिर बोलें या लिखें। (speech-to-text failed)");
-        }
-      };
-      rec.start();
-      recorder.current = rec;
-      setRecording(true);
-      setTimeout(() => rec.state === "recording" && rec.stop(), 25_000); // Sarvam REST limit ~30 s
-    } catch {
-      setError("माइक की अनुमति नहीं मिली। आप लिखकर पूछ सकते हैं। (mic permission denied)");
-    }
-  }
-
-  const r = final?.result;
-
   return (
-    <main className="mx-auto max-w-3xl px-4 py-6 sm:py-10">
-      <header>
-        <h1 className="text-3xl font-bold text-leaf-800">हार्वेस्ट कम्पास</h1>
-        <p className="mt-1 text-lg text-ink-600">कौन सी मंडी, कौन सा दिन — लाइव भाव और मौसम से</p>
-        {server === "waking" && (
-          <p className="mt-2 rounded-lg bg-amber-50 p-2 text-sm text-amber-900" role="status">
-            ⏳ सर्वर जाग रहा है, लगभग 1 मिनट लग सकता है… (free server waking up)
+    <main className="px-4">
+      <section className="mx-auto grid max-w-6xl items-center gap-12 pt-14 pb-20 lg:grid-cols-[1.05fr_1fr] lg:pt-24">
+        <div>
+          <h1 className="font-display text-6xl leading-[1.05] font-extrabold text-ink-900 sm:text-7xl">
+            कौन सी मंडी,
+            <br />
+            कौन सा दिन।
+          </h1>
+          <p className="mt-6 max-w-xl text-xl leading-relaxed text-ink-700">
+            Harvest Compass tells a soybean or onion farmer which mandi pays the most once transport is paid for, and
+            which days are dry enough to harvest. Ask in Hindi, by voice or text.
           </p>
-        )}
-        {server === "down" && (
-          <p className="mt-2 rounded-lg bg-red-50 p-2 text-sm text-red-800">सर्वर से संपर्क नहीं हो पाया। (backend unreachable)</p>
-        )}
-      </header>
-
-      <section className="mt-6 rounded-2xl border border-ink-200 bg-white p-4 shadow-sm">
-        {pending && (
-          <div className="mb-3 rounded-xl bg-amber-50 p-3 text-amber-950" role="status">
-            <p className="text-lg font-semibold">
-              {pending.hi}
-              {audioUrl && <ListenButton url={audioUrl} />}
-            </p>
-            {pending.needs === "confirm_qty" && (
-              <button
-                onClick={confirmQty}
-                disabled={busy}
-                className="mt-2 rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm hover:bg-amber-100"
-              >
-                हाँ, मात्रा सही है
-              </button>
-            )}
-            {pending.options && (
-              <div className="mt-2 flex flex-wrap gap-2">
-                {pending.options.map((p) => (
-                  <button
-                    key={p.display_name}
-                    onClick={() => confirmPlace(p)}
-                    disabled={busy}
-                    className="rounded-lg border border-amber-300 bg-white px-3 py-2 text-left text-sm hover:bg-amber-100"
-                  >
-                    हाँ, {p.name}
-                    <span className="block text-xs text-ink-500">{p.display_name}</span>
-                  </button>
-                ))}
-              </div>
-            )}
+          <div className="mt-8 flex flex-wrap gap-3">
+            <Link href="/ask" className="btn-primary px-7 py-3.5 text-lg">
+              हिंदी में पूछें
+            </Link>
+            <Link href="/how-it-works" className="btn-ghost px-7 py-3.5 text-lg">
+              See how it works
+            </Link>
           </div>
-        )}
-        <label htmlFor="q" className="text-sm font-medium text-ink-600">
-          {pending ? "जवाब लिखें या बोलें" : "अपनी फसल के बारे में पूछें — बोलकर या लिखकर"}
-        </label>
-        <textarea
-          id="q"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), submit())}
-          rows={3}
-          placeholder="जैसे: 40 क्विंटल सोयाबीन है, गाँव सांवेर, इंदौर…"
-          className="mt-1 w-full resize-none rounded-xl border border-ink-200 p-3 text-lg focus:border-leaf-600 focus:outline-none"
-        />
-        <div className="mt-2 flex gap-2">
-          <button
-            onClick={toggleMic}
-            disabled={busy && !recording}
-            aria-pressed={recording}
-            className={`flex-1 rounded-xl px-4 py-3 text-lg font-semibold text-white ${
-              recording ? "animate-pulse bg-red-600" : "bg-ink-800 hover:bg-ink-700"
-            } disabled:opacity-50`}
-          >
-            {recording ? "⏹ रोकें" : "🎤 बोलें"}
-          </button>
-          <button
-            onClick={() => submit()}
-            disabled={busy || !text.trim()}
-            className="flex-1 rounded-xl bg-leaf-700 px-4 py-3 text-lg font-semibold text-white hover:bg-leaf-800 disabled:opacity-50"
-          >
-            {busy ? "सोच रहा हूँ…" : "पूछें"}
-          </button>
+          <p className="mt-6 text-sm text-ink-600">
+            Indore, Ujjain and Dewas mandis, within 150 km. No login, nothing to install.
+          </p>
         </div>
-        {!final && !busy && (
-          <div className="mt-3 space-y-1">
-            <p className="text-xs text-ink-500">उदाहरण (टैप करें):</p>
-            {EXAMPLES.map((ex) => (
-              <button key={ex} onClick={() => setText(ex)} className="block text-left text-sm text-leaf-800 underline-offset-2 hover:underline">
-                {ex}
-              </button>
+
+        <figure className="glass-strong p-5 sm:p-7" aria-label="What the agent does with one question">
+          <p className="ml-auto max-w-[85%] rounded-3xl rounded-br-md bg-ink-900 px-5 py-3 text-lg text-white">
+            मेरे पास 40 क्विंटल सोयाबीन है, गाँव सांवेर। कहाँ बेचूँ?
+          </p>
+          <ol className="mt-6 space-y-2.5">
+            {STEPS.map((s, i) => (
+              <li key={s.hi} className="step-reveal flex items-start gap-3" style={{ animationDelay: `${0.25 + i * 0.35}s` }}>
+                <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-marigold-300 to-leaf-600 text-sm font-bold text-white">
+                  {i + 1}
+                </span>
+                <span>
+                  <span className="block font-semibold text-ink-900">{s.hi}</span>
+                  <span className="block text-sm text-ink-600">{s.en}</span>
+                </span>
+              </li>
             ))}
-          </div>
-        )}
-        {error && <p className="mt-3 rounded-lg bg-red-50 p-2 text-red-800">{error}</p>}
+          </ol>
+          <figcaption className="mt-5 border-t border-white pt-4 text-sm text-ink-600">
+            Every step streams live on screen while the farmer waits, about 12 seconds end to end.
+          </figcaption>
+        </figure>
       </section>
 
-      {trace.length > 0 && <Trace events={trace} busy={busy} />}
+      <section className="mx-auto max-w-6xl py-16">
+        <h2 className="max-w-3xl font-display text-4xl leading-tight font-bold sm:text-5xl">
+          Most farmers sell at the nearest mandi, or wherever a trader says.
+        </h2>
+        <div className="mt-8 grid max-w-5xl gap-8 text-lg text-ink-700 sm:grid-cols-3">
+          <p>Prices differ from mandi to mandi, and the trip to reach a better one costs money.</p>
+          <p>Published prices can be days old, or come from one odd lot that doesn&apos;t represent the market.</p>
+          <p>Rain on harvest or transport day spoils the crop. Forecasts exist, but in English and in millimetres.</p>
+        </div>
+      </section>
 
-      {final?.answer && r && (
-        <section className="mt-6 rounded-2xl border-2 border-leaf-600 bg-leaf-50 p-4" aria-live="polite">
-          <p className="text-xl leading-relaxed text-ink-900">
-            {final.answer}
-            {audioUrl && <ListenButton url={audioUrl} />}
+      <section className="mx-auto max-w-6xl py-16">
+        <h2 className="font-display text-4xl font-bold sm:text-5xl">What the farmer gets</h2>
+        <dl className="mt-10 grid gap-x-12 gap-y-10 md:grid-cols-2">
+          {GETS.map((g) => (
+            <div key={g.title} className="border-l-4 border-marigold-400 pl-5">
+              <dt className="font-display text-2xl font-bold text-ink-900">{g.title}</dt>
+              <dd className="mt-2 text-lg text-ink-700">{g.en}</dd>
+            </div>
+          ))}
+        </dl>
+      </section>
+
+      <section className="mx-auto grid max-w-6xl items-center gap-10 py-16 lg:grid-cols-2">
+        <div>
+          <h2 className="font-display text-4xl font-bold sm:text-5xl">Checked before it&apos;s trusted</h2>
+          <p className="mt-4 text-lg text-ink-700">
+            Public price data is messy. Before ranking, the agent rejects prices that are stale, inconsistent, far from
+            the mandi&apos;s own recent history, or for a different variety, and names each mandi it dropped with the
+            reason. The language model only phrases numbers the agent computed; a checker throws out any number or mandi
+            name it can&apos;t find in the facts.
           </p>
-          {r.confidence && (
-            <p className="mt-3">
-              <span className={`rounded-full px-3 py-1 text-sm font-semibold ${CONF_CLS[r.confidence]}`}>
-                {CONF_HI[r.confidence]}
-              </span>
-              {r.confidence_reasons?.length ? (
-                <span className="ml-2 text-sm text-ink-600">({r.confidence_reasons.join("; ")})</span>
-              ) : null}
-            </p>
-          )}
-        </section>
-      )}
+          <Link href="/how-it-works" className="mt-6 inline-block font-semibold text-leaf-800 underline underline-offset-4">
+            How the audit and repair work
+          </Link>
+        </div>
+        <figure className="glass p-5">
+          <ul className="space-y-2 text-sm">
+            {AUDIT_LINES.map((l) => (
+              <li key={l} className="rounded-xl bg-white/70 px-3 py-2 text-ink-800">
+                {l}
+              </li>
+            ))}
+          </ul>
+          <figcaption className="mt-3 text-xs text-ink-500">From a real run on 31 Oct 2026: 40 quintals of soybean near Ujjain.</figcaption>
+        </figure>
+      </section>
 
-      {r?.best && final?.place && (
-        <ResultCard r={r} place={final.place} params={params} setParams={setParams} recalc={recalc} busy={busy} />
-      )}
+      <section className="mx-auto max-w-6xl py-16">
+        <h2 className="font-display text-4xl font-bold sm:text-5xl">Measured, not promised</h2>
+        <p className="mt-4 max-w-3xl text-lg text-ink-700">
+          We replayed 60 days of real prices for 30 real villages. Each day the agent chose using only what it would have
+          known that day; we then scored it on the next day&apos;s real price against simply going to the nearest mandi.
+          Transport assumed at ₹1 per quintal per km.
+        </p>
+        <div className="mt-8">
+          <LiveNumbers />
+        </div>
+        <p className="mt-4 text-sm text-ink-600">
+          Soybean prices are nearly the same across Madhya Pradesh, so the nearest mandi is usually about as good. Onion is
+          where choosing pays.{" "}
+          <Link href="/results" className="font-semibold text-leaf-800 underline">
+            Full results and limits
+          </Link>
+        </p>
+      </section>
 
-      {srcHealth && <Footer h={srcHealth} faults={faults} setFaults={setFaults} />}
-    </main>
-  );
-}
-
-function ListenButton({ url }: { url: string }) {
-  return (
-    <button
-      onClick={() => new Audio(url).play().catch(() => {})}
-      className="ml-2 rounded-full bg-white px-2 py-0.5 align-middle text-base shadow-sm ring-1 ring-ink-200 hover:bg-ink-50"
-      aria-label="जवाब सुनें"
-    >
-      🔊
-    </button>
-  );
-}
-
-const SOURCE_HI: Record<string, string> = {
-  mandi_prices: "मंडी भाव (data.gov.in)",
-  weather: "मौसम (Open-Meteo)",
-  routing: "सड़क दूरी (OSRM)",
-  geocoding: "नक्शा खोज (Nominatim)",
-  database: "कैश डेटाबेस",
-  llm: "भाषा मॉडल",
-  voice: "आवाज़ (Sarvam)",
-};
-
-function Footer({ h, faults, setFaults }: { h: Health; faults: string[]; setFaults: (f: string[]) => void }) {
-  const [use, setUse] = useState<Stats | null>(null);
-  useEffect(() => {
-    stats().then(setUse).catch(() => setUse(null));
-  }, []);
-  return (
-    <footer className="mt-8 space-y-3 text-sm text-ink-600">
-      <BacktestCard />
-      <details className="rounded-2xl border border-ink-200 bg-white p-4">
-        <summary className="cursor-pointer font-semibold text-ink-800">
-          स्रोत स्थिति {h.status === "ok" ? "✅" : "⚠️"} <span className="font-normal text-ink-500">(source health)</span>
-        </summary>
-        <ul className="mt-2 space-y-1">
-          {Object.entries(h.sources).map(([k, v]) => (
-            <li key={k}>
-              {v.ok ? "✅" : "❌"} {SOURCE_HI[k] ?? k}
-              <span className="text-xs text-ink-500">
-                {v.ms != null ? ` · ${v.ms} ms` : v.note ? ` · ${v.note}` : ""}
-                {v.error ? ` · ${v.error}` : ""}
-              </span>
+      <section className="mx-auto max-w-6xl py-10">
+        <p className="text-sm text-ink-600">Every number comes from a live public source, shown with its fetch time:</p>
+        <ul className="mt-3 flex flex-wrap gap-2">
+          {SOURCES.map((s) => (
+            <li key={s} className="glass rounded-full px-4 py-2 text-sm font-semibold text-ink-800">
+              {s}
             </li>
           ))}
         </ul>
-        {use && use.requests > 0 && (
-          <p className="mt-2 text-xs text-ink-500">
-            पिछले {use.days} दिन: {use.requests} सवाल · आधे {((use.p50_ms ?? 0) / 1000).toFixed(1)} s में, 95%{" "}
-            {((use.p95_ms ?? 0) / 1000).toFixed(1)} s में · रास्ता बदला (repair){" "}
-            {Math.round((use.fallback_rate ?? 0) * 100)}% · गढ़े गए अंक पकड़े: {use.invented_numbers}
-          </p>
-        )}
-      </details>
-      <details className="rounded-2xl border border-ink-200 bg-white p-4">
-        <summary className="cursor-pointer font-semibold text-ink-800">
-          टेस्ट स्विच {faults.length > 0 && `(${faults.length} चालू)`}{" "}
-          <span className="font-normal text-ink-500">(demo: pretend a source is down)</span>
-        </summary>
-        <p className="mt-1 text-xs text-ink-500">
-          चुना गया स्रोत अगले सवाल में बुलाया नहीं जाएगा, ताकि आप एजेंट को रास्ता बदलते देख सकें। कोई नकली डेटा नहीं भरा जाता।
-        </p>
-        {Object.entries(h.test_switches).map(([k, label]) => (
-          <label key={k} className="mt-1 flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={faults.includes(k)}
-              onChange={(e) => setFaults(e.target.checked ? [...faults, k] : faults.filter((f) => f !== k))}
-            />
-            {label}
-          </label>
-        ))}
-      </details>
-      <p className="text-xs text-ink-500">
-        Weather data by <a className="underline" href="https://open-meteo.com/">Open-Meteo.com</a> (CC BY 4.0) · Prices:
-        data.gov.in (OGD) · Maps © OpenStreetMap contributors
-      </p>
-    </footer>
-  );
-}
-
-function Trace({ events, busy }: { events: TraceEvent[]; busy: boolean }) {
-  return (
-    <section className="mt-6 rounded-2xl border border-ink-200 bg-white p-4">
-      <h2 className="font-semibold text-ink-800">
-        एजेंट क्या कर रहा है <span className="text-sm font-normal text-ink-500">(live trace)</span>
-        {busy && <span className="ml-2 inline-block h-2 w-2 animate-ping rounded-full bg-leaf-600" />}
-      </h2>
-      <ol className="mt-2 max-h-80 space-y-1 overflow-y-auto text-sm">
-        {events.map((e, i) => (
-          <li
-            key={i}
-            className={`flex gap-2 rounded-lg px-2 py-1 ${
-              e.event === "repair" ? "bg-amber-50" : e.event === "audit_reject" ? "bg-red-50" : ""
-            }`}
-          >
-            <span aria-hidden>{EVENT_ICON[e.event] ?? "•"}</span>
-            <span className="min-w-0">
-              {e.hi && e.hi !== e.en && <span className="block text-ink-800">{e.hi}</span>}
-              <span className="block break-words text-ink-500">{e.en}</span>
-              {e.status && (
-                <span className="text-xs text-ink-500">
-                  {STATUS_HI[e.status] ?? e.status}
-                  {e.ms != null && ` · ${(e.ms / 1000).toFixed(1)} s`}
-                  {e.fetched_at && ` · ${hiTime(e.fetched_at)}`}
-                </span>
-              )}
-            </span>
-          </li>
-        ))}
-      </ol>
-    </section>
-  );
-}
-
-function ResultCard({
-  r,
-  place,
-  params,
-  setParams,
-  recalc,
-  busy,
-}: {
-  r: Result;
-  place: Place;
-  params: Params;
-  setParams: (p: Params) => void;
-  recalc: () => void;
-  busy: boolean;
-}) {
-  const b = r.best!;
-  return (
-    <>
-      <section className="mt-6 rounded-2xl border border-ink-200 bg-white p-4">
-        <p className="text-sm text-ink-500">सबसे अच्छी मंडी</p>
-        <h2 className="text-2xl font-bold text-leaf-800">{b.market}</h2>
-        <p className="text-ink-600">
-          {b.district} · {distance(b)}
-          {b.road_km >= 1 && ` · लगभग ${Math.round(b.drive_min)} मिनट`}
-        </p>
-        <dl className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-          <Stat label="शुद्ध भाव / क्विंटल" value={rupee(b.net_per_quintal)} strong />
-          <Stat label={`कुल शुद्ध (${r.quantity_q} क्विं.)`} value={rupee(b.net_total)} />
-          <Stat
-            label="बुरे दिन का भाव / क्विं."
-            value={b.conservative_net_per_quintal == null ? "इतिहास कम" : rupee(b.conservative_net_per_quintal)}
-          />
-        </dl>
-        <p className="mt-2 text-xs text-ink-500">
-          हिसाब का भाव {rupee(b.price_used)}{" "}
-          {b.price_days > 1 ? `(पिछले ${b.price_days} रिपोर्ट का median)` : "(ताज़ा भाव)"} · आज का मॉडल भाव{" "}
-          {rupee(b.modal_price)} ({b.variety}) · भाव की तारीख {hiDay(b.arrival_date)}
-          {b.age_days > 0 && ` (${b.age_days} दिन पुराना)`}
-        </p>
-        {r.nearer_pick && (
-          <p className="mt-3 text-sm text-ink-700">
-            <b>{r.nearer_pick.skipped}</b> सिर्फ़ {rupee(r.nearer_pick.extra_per_quintal)}/क्विं. ज़्यादा देती, पर{" "}
-            {r.nearer_pick.extra_km} km और दूर है, इसलिए पास वाली मंडी बताई।
-          </p>
-        )}
-        {r.runner_up && r.runner_up_gap && (
-          <p className="mt-3 text-sm text-ink-700">
-            दूसरे नंबर पर <b>{r.runner_up.market}</b>:{" "}
-            {r.runner_up_gap.price > 0
-              ? `भाव ${rupee(r.runner_up_gap.price)} कम`
-              : `भाव ${rupee(-r.runner_up_gap.price)} ज़्यादा, पर भाड़ा ${rupee(r.runner_up_gap.transport_per_quintal)}/क्विं. ज़्यादा`}
-            {" "}— कुल मिलाकर {rupee(r.runner_up_gap.net_per_quintal)}/क्विं. कम।
-          </p>
-        )}
       </section>
 
-      {(r.harvest_days?.length || r.wait) && (
-        <section className="mt-4 rounded-2xl border border-ink-200 bg-white p-4">
-          {r.harvest_days && r.harvest_days.length > 0 && (
-            <>
-              <h3 className="font-semibold text-ink-800">कटाई / ढुलाई के लिए सुरक्षित दिन</h3>
-              <ul className="mt-2 flex flex-wrap gap-2">
-                {r.harvest_days.map((d) => (
-                  <li
-                    key={d.day}
-                    className={`rounded-lg px-3 py-2 text-sm ${d.both_dry && !d.uncertain ? "bg-leaf-100 text-leaf-900" : "bg-amber-50 text-amber-900"}`}
-                    title={d.reasons.join("; ")}
-                  >
-                    {hiDay(d.day)} {d.both_dry ? "☀️ सूखा" : "🌧 बारिश संभव"}
-                    {d.uncertain && " · अनिश्चित"}
-                  </li>
-                ))}
-              </ul>
-              {r.beyond_forecast && r.beyond_forecast.length > 0 && (
-                <p className="mt-2 text-xs text-ink-500">
-                  {r.beyond_forecast.map(hiDay).join(", ")}: पूर्वानुमान अभी उपलब्ध नहीं (7 दिन से आगे)
-                </p>
-              )}
-            </>
-          )}
-          {r.wait && (
-            <p className="mt-3 text-sm text-ink-700">
-              <b>{r.wait.days} दिन रुकें तो?</b>{" "}
-              {r.wait.trend_change_per_quintal == null
-                ? "भाव का रुझान निकालने लायक इतिहास नहीं।"
-                : `पिछले 14 दिन के रुझान से भाव लगभग ${r.wait.trend_change_per_quintal >= 0 ? "+" : ""}${rupee(r.wait.trend_change_per_quintal)}/क्विं.`}
-              {r.wait.max_rain_risk != null && ` · बारिश का जोखिम ${Math.round(r.wait.max_rain_risk * 100)}%`}
-              <span className="block text-xs text-ink-500">यह रुझान है, पूर्वानुमान नहीं (trend, not forecast)</span>
-            </p>
-          )}
-        </section>
-      )}
-
-      <section className="mt-4 rounded-2xl border border-ink-200 bg-white p-4">
-        <h3 className="mb-2 font-semibold text-ink-800">नक्शा</h3>
-        <MandiMap origin={place} mandis={r.ranking.slice(0, 5)} />
-      </section>
-
-      <section className="mt-4 rounded-2xl border border-ink-200 bg-white p-4">
-        <h3 className="font-semibold text-ink-800">मंडियों की तुलना</h3>
-        <div className="mt-2 overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="text-left text-xs text-ink-500">
-              <tr>
-                <th className="py-1 pr-2">#</th>
-                <th className="pr-2">मंडी</th>
-                <th className="pr-2 text-right" title="7 दिन का median">भाव (7 दिन)</th>
-                <th className="pr-2 text-right">दूरी</th>
-                <th className="pr-2 text-right">भाड़ा</th>
-                <th className="text-right">शुद्ध/क्विं.</th>
-              </tr>
-            </thead>
-            <tbody>
-              {r.ranking.map((m, i) => (
-                <tr key={m.market + m.district} className="border-t border-ink-100">
-                  <td className="py-1 pr-2">{i + 1}</td>
-                  <td className="pr-2">
-                    {m.market}
-                    {m.age_days > 0 && <span className="text-xs text-ink-500"> ({m.age_days}d)</span>}
-                  </td>
-                  <td className="pr-2 text-right">{rupee(m.price_used)}</td>
-                  <td className="pr-2 text-right">{m.road_km < 1 ? "उसी कस्बे" : `${Math.round(m.road_km)} km`}</td>
-                  <td className="pr-2 text-right">{rupee(m.transport_total)}</td>
-                  <td className="text-right font-semibold">{rupee(m.net_per_quintal)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      <section className="mx-auto max-w-6xl py-16">
+        <div className="glass-strong flex flex-col items-start gap-6 p-8 sm:flex-row sm:items-center sm:justify-between sm:p-12">
+          <div>
+            <h2 className="font-display text-4xl font-bold">अपनी फसल के बारे में पूछिए</h2>
+            <p className="mt-2 text-lg text-ink-700">Tap the mic and speak, or type. The answer comes back in Hindi.</p>
+          </div>
+          <Link href="/ask" className="btn-primary shrink-0 px-8 py-4 text-lg">
+            पूछें
+          </Link>
         </div>
       </section>
-
-      <section className="mt-4 rounded-2xl border border-ink-200 bg-white p-4">
-        <h3 className="font-semibold text-ink-800">खर्च का हिसाब ({b.market})</h3>
-        <ul className="mt-2 space-y-1 text-sm text-ink-700">
-          <li>
-            भाव: {rupee(b.price_used)} × {r.quantity_q} क्विं. = {rupee(b.price_used * r.quantity_q)}
-          </li>
-          <li>
-            भाड़ा: {b.trips} चक्कर × 2 (आना-जाना) × {b.road_km} km × {rupee(r.costs.rate_per_km)}/km = −
-            {rupee(b.transport_total)}
-          </li>
-          <li>
-            हम्माली/तुलाई: {r.costs.other_charges_per_q > 0 ? `${rupee(r.costs.other_charges_per_q)}/क्विं. = −${rupee(b.mandi_charges)}` : "नहीं जोड़ी (आप देते हों तो नीचे भरें — दर मंडी समिति तय करती है)"}
-          </li>
-          <li className="text-xs text-ink-500">
-            मंडी शुल्क खरीदार देता है, किसान से नहीं कटता (म.प्र. कृषि उपज मंडी अधिनियम 1972, धारा 19(2))।
-          </li>
-          <li className="font-semibold">शुद्ध: {rupee(b.net_total)}</li>
-        </ul>
-        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
-          <NumField label="भाड़ा ₹/km" value={params.rate_per_km} onChange={(v) => setParams({ ...params, rate_per_km: v })} />
-          <NumField label="गाड़ी में क्विंटल" value={params.capacity_q} onChange={(v) => setParams({ ...params, capacity_q: v })} />
-          <NumField
-            label="हम्माली/तुलाई ₹/क्विं. (अगर आप देते हैं)"
-            value={params.other_charges_per_q}
-            min={0}
-            onChange={(v) => setParams({ ...params, other_charges_per_q: v })}
-          />
-        </div>
-        <button
-          onClick={recalc}
-          disabled={busy}
-          className="mt-3 rounded-xl bg-ink-800 px-4 py-2 font-semibold text-white hover:bg-ink-700 disabled:opacity-50"
-        >
-          दोबारा हिसाब करें
-        </button>
-        {r.notes.length > 0 && <p className="mt-2 text-xs text-ink-500">{r.notes.join(" · ")}</p>}
-      </section>
-
-      {r.excluded.length > 0 && (
-        <details className="mt-4 rounded-2xl border border-ink-200 bg-white p-4">
-          <summary className="cursor-pointer font-semibold text-ink-800">
-            छोड़ी गई मंडियाँ ({r.excluded.length}) — क्यों?
-          </summary>
-          <ul className="mt-2 space-y-1 text-sm">
-            {r.excluded.map((x) => (
-              <li key={x.market + x.district}>
-                <b>{x.market}</b> ({x.district}): {(x.reasons_hi.length ? x.reasons_hi : x.reasons).join("; ")}
-              </li>
-            ))}
-          </ul>
-        </details>
-      )}
-
-      {r.sources && (
-        <section className="mt-4 rounded-2xl border border-ink-200 bg-white p-4 text-sm text-ink-700">
-          <h3 className="font-semibold text-ink-800">डेटा के स्रोत</h3>
-          <ul className="mt-2 space-y-1">
-            {r.sources.prices_today && (
-              <li>
-                आज के भाव: <a className="underline" href={r.sources.prices_today.url} target="_blank" rel="noreferrer">data.gov.in</a>{" "}
-                · {STATUS_HI[r.sources.prices_today.status] ?? r.sources.prices_today.status} ·{" "}
-                {hiTime(r.sources.prices_today.fetched_at)}
-              </li>
-            )}
-            <li>भाव का इतिहास: {r.sources.history}</li>
-            {r.sources.weather && (
-              <li>
-                मौसम: <a className="underline" href="https://open-meteo.com/" target="_blank" rel="noreferrer">Weather data by Open-Meteo.com</a>{" "}
-                (<a className="underline" href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noreferrer">CC BY 4.0</a>) ·{" "}
-                {STATUS_HI[r.sources.weather.status] ?? r.sources.weather.status} · {hiTime(r.sources.weather.fetched_at)}
-              </li>
-            )}
-            <li>सड़क की दूरी: {r.sources.routing}</li>
-          </ul>
-        </section>
-      )}
-    </>
-  );
-}
-
-function Stat({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
-  return (
-    <div className="rounded-xl bg-ink-50 p-3">
-      <dt className="text-xs text-ink-500">{label}</dt>
-      <dd className={strong ? "text-2xl font-bold text-leaf-800" : "text-xl font-semibold text-ink-900"}>{value}</dd>
-    </div>
-  );
-}
-
-function NumField({ label, value, onChange, min = 1 }: { label: string; value?: number; onChange: (v: number) => void; min?: number }) {
-  return (
-    <label className="text-xs text-ink-600">
-      {label}
-      <input
-        type="number"
-        inputMode="decimal"
-        min={min}
-        value={value ?? ""}
-        onChange={(e) => onChange(Math.max(min, Number(e.target.value)))}
-        className="mt-1 block w-full rounded-lg border border-ink-200 p-2 text-base text-ink-900"
-      />
-    </label>
+    </main>
   );
 }

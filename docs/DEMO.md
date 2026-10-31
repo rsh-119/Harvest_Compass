@@ -1,6 +1,6 @@
 # 2–3 minute demo (record from the live deployed app)
 
-Before recording: open the link once (wakes the backend), check the source-status footer is all ✅, and ask the first question once so the cache is warm. Keep the text box ready in case the mic fails.
+Start on the home page for 5 seconds (the agent steps animate), then tap **पूछें**. Before recording: open the link once (wakes the backend), check the source-status footer is all ✅, and ask the first question once so the cache is warm. Keep the text box ready in case the mic fails.
 
 | Time | Do | Say / show |
 |---|---|---|
@@ -11,5 +11,5 @@ Before recording: open the link once (wakes the backend), check the source-statu
 | 1:05 | Open **टेस्ट स्विच**, tick "Weather model A (ECMWF)", tap दोबारा हिसाब करें | 🔧 repair line: falls back to GFS, days marked uncertain, confidence drops |
 | 1:35 | Scroll: answer card, map, comparison table, cost breakdown | Net ₹/quintal after transport; same-town label; spoken answer plays (🔊) |
 | 2:00 | New question: "अगर तीन दिन रुकूँ तो भाव बढ़ेगा क्या? पचास क्विंटल सोयाबीन, उज्जैन, गोदाम है" | Wait-3-days line, labelled *trend, not forecast* |
-| 2:25 | Open **पिछले 60 दिन की जाँच** | Real backtest: onion gains vs the nearest mandi; soybean about break-even. Honest numbers |
+| 2:25 | Open the **Results** page (top menu) | Real backtest: onion gains vs the nearest mandi; soybean about break-even. Honest numbers |
 | 2:45 | End on the sources footer | Every number from data.gov.in / Open-Meteo / OSM, with timestamps |

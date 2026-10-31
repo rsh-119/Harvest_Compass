@@ -15,72 +15,93 @@ type Summary = {
   pct_positive?: number;
   mean_regret?: number;
 };
-type Run = { crop: string; run_at: string; window: [string, string]; villages: string[]; summaries: Summary[] };
+export type Run = { crop: string; run_at: string; window: [string, string]; villages: string[]; summaries: Summary[] };
 
-const CROP_HI: Record<string, string> = { Soyabean: "सोयाबीन", Onion: "प्याज़" };
-const STRAT_HI: Record<string, string> = {
-  today: "आज के भाव से",
-  median7: "7 दिन के median से",
-  median7_near: "7 दिन का median + बराबरी पर पास वाली (अभी यही)",
+export const CROP: Record<string, string> = { Soyabean: "सोयाबीन · Soybean", Onion: "प्याज़ · Onion" };
+const STRAT: Record<string, { hi: string; en: string }> = {
+  today: { hi: "आज के भाव से", en: "Rank on today's price" },
+  median7: { hi: "7 दिन के median से", en: "Rank on 7-day median" },
+  median7_near: { hi: "median + बराबरी पर पास वाली", en: "7-day median, nearer on close calls (live)" },
 };
+const RATES = [0.5, 1, 2];
 
-export default function BacktestCard() {
-  const [runs, setRuns] = useState<Run[] | null>(null);
-
+export function useBacktest(): Run[] | null | undefined {
+  const [runs, setRuns] = useState<Run[] | null | undefined>(undefined); // undefined = loading, null = failed
   useEffect(() => {
     fetch(`${API}/backtest`)
-      .then((r) => (r.ok ? r.json() : []))
+      .then((r) => (r.ok ? r.json() : null))
       .then(setRuns)
-      .catch(() => setRuns([]));
+      .catch(() => setRuns(null));
   }, []);
+  return runs;
+}
 
-  if (!runs?.length) return null;
+export const signed = (n: number) => `${n >= 0 ? "+" : "−"}₹${Math.abs(Math.round(n)).toLocaleString("en-IN")}`;
+
+export default function BacktestCard() {
+  const runs = useBacktest();
+  const [rate, setRate] = useState(1);
+
+  if (runs === undefined) return <p className="text-ink-500">Loading the stored backtest…</p>;
+  if (!runs?.length)
+    return <p className="text-ink-600">The backend didn&apos;t answer. It may be waking up; reload in a minute.</p>;
   return (
-    <details className="rounded-2xl border border-ink-200 bg-white p-4">
-      <summary className="cursor-pointer font-semibold text-ink-800">
-        पिछले 60 दिन की जाँच <span className="font-normal text-ink-500">(backtest on real prices)</span>
-      </summary>
-      <p className="mt-2 text-xs text-ink-500">
-        {runs[0].villages.length} असली गाँव, हर दिन उसी दिन तक के डेटा से फ़ैसला, अगले दिन के असली भाव से हिसाब। तुलना: सबसे पास वाली मंडी।
-        भाड़ा ₹1 प्रति क्विंटल प्रति km मान कर (मापा हुआ नहीं)।
-      </p>
-      {runs.map((run) => (
-        <div key={run.crop} className="mt-3">
-          <h4 className="font-semibold text-ink-800">
-            {CROP_HI[run.crop] ?? run.crop}{" "}
-            <span className="text-xs font-normal text-ink-500">
-              ({run.window[0]} – {run.window[1]})
-            </span>
-          </h4>
-          <table className="mt-1 w-full text-sm">
-            <thead className="text-left text-xs text-ink-500">
-              <tr>
-                <th className="pr-2">मंडी चुनने का तरीका</th>
-                <th className="pr-2 text-right">औसत फ़ायदा/क्विं.</th>
-                <th className="pr-2 text-right">फ़ायदे वाले दिन</th>
-                <th className="text-right">फ़ैसले</th>
-              </tr>
-            </thead>
-            <tbody>
-              {run.summaries
-                .filter((s) => s.transport_per_q_km === 1 && s.mean_gain != null)
-                .map((s) => (
-                  <tr key={s.strategy} className="border-t border-ink-100">
-                    <td className="py-1 pr-2">{STRAT_HI[s.strategy] ?? s.strategy}</td>
-                    <td className={`pr-2 text-right font-semibold ${s.mean_gain! >= 0 ? "text-leaf-800" : "text-red-700"}`}>
-                      {s.mean_gain! >= 0 ? "+" : "−"}₹{Math.abs(Math.round(s.mean_gain!))}
-                    </td>
-                    <td className="pr-2 text-right">{s.pct_positive}%</td>
-                    <td className="text-right">{s.decisions}</td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
+    <div>
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="text-sm text-ink-600">Transport cost (assumed, ₹ per quintal per km):</span>
+        <div role="radiogroup" aria-label="Transport cost" className="glass flex rounded-full p-1">
+          {RATES.map((c) => (
+            <button
+              key={c}
+              role="radio"
+              aria-checked={rate === c}
+              onClick={() => setRate(c)}
+              className={`rounded-full px-4 py-1.5 text-sm font-semibold ${
+                rate === c ? "bg-ink-900 text-white" : "text-ink-700 hover:bg-white/70"
+              }`}
+            >
+              ₹{c}
+            </button>
+          ))}
         </div>
-      ))}
-      <p className="mt-2 text-xs text-ink-500">
-        सोयाबीन के भाव पूरे म.प्र. में लगभग एक जैसे हैं, इसलिए पास की मंडी भी लगभग उतनी ही अच्छी है; प्याज़ में मंडी चुनने से असली फ़र्क पड़ता है।
-      </p>
-    </details>
+      </div>
+      <div className="mt-6 grid gap-6 lg:grid-cols-2">
+        {runs.map((run) => (
+          <section key={run.crop} className="glass p-5">
+            <h3 className="font-display text-2xl font-bold">{CROP[run.crop] ?? run.crop}</h3>
+            <p className="text-xs text-ink-500">
+              {run.villages.length} villages, {run.window[0]} to {run.window[1]}
+            </p>
+            <table className="mt-3 w-full text-sm">
+              <thead className="text-left text-xs text-ink-500">
+                <tr>
+                  <th className="pb-1 font-normal">How the mandi is picked</th>
+                  <th className="pb-1 text-right font-normal">Mean gain / q</th>
+                  <th className="pb-1 text-right font-normal">Beat nearest</th>
+                  <th className="pb-1 text-right font-normal">Regret / q</th>
+                </tr>
+              </thead>
+              <tbody>
+                {run.summaries
+                  .filter((s) => s.transport_per_q_km === rate && s.mean_gain != null)
+                  .map((s) => (
+                    <tr key={s.strategy} className={`border-t border-white ${s.strategy === "median7_near" ? "font-semibold" : ""}`}>
+                      <td className="py-2 pr-2">
+                        {STRAT[s.strategy]?.en ?? s.strategy}
+                        <span className="block text-xs font-normal text-ink-500">{STRAT[s.strategy]?.hi}</span>
+                      </td>
+                      <td className={`text-right ${s.mean_gain! >= 0 ? "text-leaf-800" : "text-red-700"}`}>
+                        {signed(s.mean_gain!)}
+                      </td>
+                      <td className="text-right">{s.pct_positive}%</td>
+                      <td className="text-right text-ink-600">₹{Math.round(s.mean_regret ?? 0)}</td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </section>
+        ))}
+      </div>
+    </div>
   );
 }
