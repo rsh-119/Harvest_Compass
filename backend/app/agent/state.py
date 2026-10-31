@@ -74,6 +74,7 @@ class AgentState(TypedDict, total=False):
     intent: Intent
     quantity_q: float
     place: Place
+    region: str  # the farmer's state, as OpenStreetMap names it
     clarify: dict[str, Any]
     plan: list[dict[str, str]]
     radius_km: float

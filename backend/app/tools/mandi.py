@@ -57,8 +57,8 @@ def parse_row(r: dict[str, Any], source: Literal["current", "history"]) -> Price
 
     try:
         return PriceRow(
-            market=str(get("market")),
-            district=str(get("district")),
+            market=str(get("market")).strip(),  # data.gov.in has e.g. "APMC Lasalgaon "
+            district=str(get("district")).strip(),
             commodity=str(get("commodity")),
             variety=str(get("variety")),
             grade=str(get("grade")),

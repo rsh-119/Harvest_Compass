@@ -108,3 +108,15 @@ def test_translation_must_keep_numbers() -> None:
     assert not numbers_kept("Do you really have 50000 quintals?", "क्या सच में 5000 क्विंटल?")
     assert numbers_kept("How many quintals does one trip carry?", "1 চক্করে কত কুইন্টাল?")
     assert not numbers_kept("How many quintals?", "40 কুইন্টাল?")
+
+
+def test_state_from_osm_address() -> None:
+    from app.data.regions import agmark, state_of
+
+    assert (
+        state_of("Sanwer, Sanwer Tahsil, Indore, Madhya Pradesh, 453551, India") == "Madhya Pradesh"
+    )
+    assert state_of("Lasalgaon, Niphad, Nashik, Maharashtra, 422306, India") == "Maharashtra"
+    assert state_of("Model Town, Lahore, Punjab, Pakistan") is None
+    assert state_of("Kathmandu, Bagmati, Nepal") is None
+    assert agmark("Kerala") == "Keralam" and agmark("Gujarat") == "Gujarat"

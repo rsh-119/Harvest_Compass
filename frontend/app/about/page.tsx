@@ -28,8 +28,8 @@ export default function About() {
         </p>
         <p>
           Harvest Compass brings that data to one question asked in the farmer&apos;s own language, checks it before trusting it, and shows its
-          working. It covers soybean and onion around Indore, Ujjain and Dewas, where the data showed the most mandis
-          reporting. Built for FORGE &apos;26.
+          working. It covers soybean and onion for any village in India, using the mandis that report in the farmer&apos;s
+          state. Built for FORGE &apos;26.
         </p>
       </div>
 

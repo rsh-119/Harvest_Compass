@@ -1,8 +1,8 @@
 # Harvest Compass — हार्वेस्ट कम्पास
 
-**Which mandi to sell in, and which days are safe to harvest and transport.** A farmer near Indore asks in Hindi, by voice or text. An agent pulls live mandi prices, two weather models and real road distances, checks the data, and replies in plain spoken Hindi. It shows every step, every source, and every number's origin.
+**Which mandi to sell in, and which days are safe to harvest and transport.** A farmer anywhere in India asks in their own language, by voice or text. An agent pulls live mandi prices, two weather models and real road distances, checks the data, and replies in plain language, spoken where a voice exists. It shows every step, every source, and every number's origin.
 
-Built for FORGE '26. Region: Madhya Pradesh (Indore radius 150 km, widened to 250 km when data is thin). Crops: soybean and onion, chosen by data coverage in M0.
+Built for FORGE '26. Region: all of India. The farmer's state is read from their village on OpenStreetMap, and that state's mandis within 150 km are compared (widened to 250 km when data is thin). Crops: soybean (reported in 8 states) and onion (26 states). The backtest is run on Madhya Pradesh villages.
 
 ## The problem
 A farmer with 40 quintals of soybean usually sells at the nearest mandi, or wherever a trader says. Prices differ between mandis, and so does the transport cost to reach them. Some published prices are stale, or are outliers from one odd lot. Rain on harvest or transport day ruins crop. The information is public but scattered, in English, and unchecked.
@@ -80,7 +80,7 @@ The 20th question correctly asks to confirm the tahsil (Mahidpur exists in OSM o
 | [Sarvam AI](https://www.sarvam.ai) — saaras:v4, bulbul:v4-flash | Hindi speech in and out | API terms |
 | [OpenRouter](https://openrouter.ai) | LLM access | API terms |
 
-Mandi fee: under MP Krishi Upaj Mandi Adhiniyam 1972, Sec 19(2), the buyer pays the market fee, so the seller's fee is 0. Hammali/tulai rates are set by each mandi committee, so they're an editable field, not a default.
+Mandi fee: in Madhya Pradesh, under the Krishi Upaj Mandi Adhiniyam 1972, Sec 19(2), the buyer pays the market fee, so the seller's fee is 0. Other states' rules aren't verified, so there the answer says the fee isn't included. Hammali/tulai rates are set by each mandi committee, so they're an editable field, not a default.
 
 **No dummy data.** Every price, forecast and distance comes from a live API or a cache of a real response, stored with `source_url` and `fetched_at`. The only reference lists in code are names: crop synonyms and OSM spellings of mandi towns.
 
@@ -116,6 +116,7 @@ uv run python -m app.backtest.run_backtest           # stores results in Postgre
 uv run python -m scripts.grounding                   # 20 questions, counts invented numbers
 uv run python -m scripts.ask "40 क्विंटल सोयाबीन, गाँव सांवेर, किराया 35 रुपये किलोमीटर, गाड़ी में 30 क्विंटल" --fault weather_ecmwf
 uv run python -m scripts.smoke                       # one live call to every source
+uv run python -m scripts.warm                        # cache prices and mandi locations for every state
 ```
 
 ## Deploy
@@ -131,6 +132,9 @@ uv run python -m scripts.smoke                       # one live call to every so
 - The ₹50/quintal "close call" margin is a judgement call, not measured data.
 - Weather beyond 7 days isn't forecast; those days are shown as "no forecast yet".
 - In-memory rate limiting holds for one backend instance.
+- Only mandis in the farmer's own state are compared; a cheaper mandi just across a state border isn't considered yet.
+- The first question from a state whose mandis aren't cached yet takes a few minutes (OpenStreetMap allows 1 lookup a second). `uv run python -m scripts.warm` fills the cache for every state.
+- Some private markets (common in Maharashtra) have long names that can't be found on the map; they're excluded by name.
 
 ## Team
 _(add names and roles)_

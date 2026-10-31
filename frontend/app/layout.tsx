@@ -21,7 +21,7 @@ const baloo = Baloo_2({
 export const metadata: Metadata = {
   title: { default: "Harvest Compass — कौन सी मंडी, कौन सा दिन", template: "%s · Harvest Compass" },
   description:
-    "A voice agent in English and 22 Indian languages for soybean and onion farmers in Madhya Pradesh: the mandi that pays most after transport, and dry days to harvest. Live public data, checked and shown.",
+    "A voice agent in English and 22 Indian languages for soybean and onion farmers across India: the mandi that pays most after transport, and dry days to harvest. Live public data, checked and shown.",
 };
 
 export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#eef5fc" };

@@ -13,7 +13,7 @@ from rapidfuzz import fuzz
 from app.agent.state import AgentState, Intent
 from app.agent.trace import emit
 from app.clock import today_ist
-from app.config import settings
+from app.data.regions import state_of
 from app.data.synonyms import normalize_crop
 from app.faults import clean
 from app.languages import localise
@@ -154,11 +154,11 @@ async def match_village(
     # Try in order until OSM returns a real settlement:
     #   Latin name; the farmer's own words (OSM also indexes Hindi names); and, with no district,
     #   "Shajapur, Shajapur" (alone, "Shajapur" finds only the district).
-    queries = [", ".join(p for p in (name, district, settings.state, "India") if p)]
+    queries = [", ".join(p for p in (name, district, "India") if p)]
     if as_said and as_said != name:
-        queries.append(", ".join(p for p in (as_said, district, settings.state, "India") if p))
+        queries.append(", ".join(p for p in (as_said, district, "India") if p))
     if not district:
-        queries.append(f"{name}, {name}, {settings.state}, India")
+        queries.append(f"{name}, {name}, India")
     for q in queries:
         res = await search_settlements(q, limit=5)
         if res.data:
@@ -171,12 +171,12 @@ async def match_village(
         status=res.status,
         source_url=res.source_url,
     )
-    cands = [p for p in res.data or [] if settings.state.lower() in p.display_name.lower()]
+    cands = [p for p in res.data or [] if state_of(p.display_name)]  # anywhere in India
     scored = sorted(((_score(name, p), p) for p in cands), key=lambda x: -x[0])
     if not scored:
         # Some towns exist in OSM only as their tahsil (Badnagar, Mahidpur). Offer the tahsil
         # as a question, never as a silent answer: its point can be a few km from the town.
-        tahsils = await search(f"{name} Tahsil, {district or ''}, {settings.state}, India", limit=3)
+        tahsils = await search(f"{name} Tahsil, {district or ''}, India", limit=3)
         opts = [
             p
             for p in tahsils.data or []
@@ -283,6 +283,14 @@ async def understand(state: AgentState) -> dict[str, Any]:
                 req.lang,
             )
         emit("understand", f"Village matched: {place.display_name}", f"गाँव मिला: {place.name}")
+    region = state_of(place.display_name)
+    if region is None:
+        return await _ask(
+            "यह जगह भारत के किसी राज्य में नहीं मिली। गाँव और ज़िले का नाम बताइए।",
+            "That place isn't in an Indian state I can recognise. Please tell me the village and district.",
+            intent,
+            req.lang,
+        )
     # Edit boxes win over words. Neither given -> ask; we never assume a hire rate.
     rate = req.params.rate_per_km or intent.rate_per_km
     cap = req.params.capacity_q or intent.capacity_q
@@ -309,6 +317,7 @@ async def understand(state: AgentState) -> dict[str, Any]:
         "intent": intent,
         "quantity_q": qty,
         "place": place,
+        "region": region,
         "faults": clean(req.faults),
         "radius_km": req.params.radius_km,
         "repairs": 0,

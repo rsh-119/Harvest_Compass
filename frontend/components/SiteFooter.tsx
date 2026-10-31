@@ -11,7 +11,7 @@ export default function SiteFooter() {
             <span className="font-display text-lg font-bold">Harvest Compass</span>
           </div>
           <p className="mt-2 max-w-xs text-sm text-ink-600">
-            कौन सी मंडी, कौन सा दिन। Built for soybean and onion farmers around Indore, Ujjain and Dewas. FORGE &apos;26.
+            कौन सी मंडी, कौन सा दिन। Built for soybean and onion farmers across India. FORGE &apos;26.
           </p>
         </div>
         <ul className="space-y-1 text-sm">

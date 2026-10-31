@@ -606,7 +606,7 @@ function ResultCard({
             })}
           </li>
           <li className="text-xs text-ink-500">
-            {t("c_fee")}
+            {r.region === "Madhya Pradesh" ? t("c_fee") : t("c_fee_other")}
           </li>
           <li className="font-semibold">{t("c_net", { t: rupee(b.net_total) })}</li>
         </ul>

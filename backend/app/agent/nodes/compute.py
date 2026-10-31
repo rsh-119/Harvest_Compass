@@ -125,7 +125,10 @@ def compute_result(state: AgentState, today: date) -> dict[str, Any]:
             "capacity_q": p.capacity_q,
             "other_charges_per_q": p.other_charges_per_q,
             "seller_fee_rate": SELLER_FEE_RATE,
+            # The fee rule above is cited for MP only; elsewhere the UI says it isn't included.
+            "fee_rule_state": "Madhya Pradesh",
         },
+        "region": state.get("region"),
     }
     if not ranked:
         out["best"] = None

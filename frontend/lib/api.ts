@@ -55,6 +55,7 @@ export type Result = {
   ranking: MandiRow[];
   excluded: { market: string; district: string; reasons: string[]; reasons_hi: string[] }[];
   radius_km: number;
+  region?: string | null; // the farmer's state
   notes: string[];
   costs: { rate_per_km: number; capacity_q: number; other_charges_per_q: number; seller_fee_rate: number };
   trend_per_day?: number | null;

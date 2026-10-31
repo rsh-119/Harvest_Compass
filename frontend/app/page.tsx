@@ -64,7 +64,7 @@ export default function Home() {
             </Link>
           </div>
           <p className="mt-6 text-sm text-ink-600">
-            Indore, Ujjain and Dewas mandis, within 150 km. No login, nothing to install.
+            Any village in India, mandis in the farmer&apos;s state within 150 km. No login, nothing to install.
           </p>
         </div>
 
@@ -142,7 +142,7 @@ export default function Home() {
       <section className="mx-auto max-w-6xl py-16">
         <h2 className="font-display text-4xl font-bold sm:text-5xl">Measured, not promised</h2>
         <p className="mt-4 max-w-3xl text-lg text-ink-700">
-          We replayed 60 days of real prices for 30 real villages. Each day the agent chose using only what it would have
+          We replayed 60 days of real prices for 30 real villages in Madhya Pradesh. Each day the agent chose using only what it would have
           known that day; we then scored it on the next day&apos;s real price against simply going to the nearest mandi.
           Transport assumed at ₹1 per quintal per km.
         </p>
@@ -150,7 +150,7 @@ export default function Home() {
           <LiveNumbers />
         </div>
         <p className="mt-4 text-sm text-ink-600">
-          Soybean prices are nearly the same across Madhya Pradesh, so the nearest mandi is usually about as good. Onion is
+          The backtest is for villages in Madhya Pradesh. Soybean prices there are nearly the same everywhere, so the nearest mandi is usually about as good. Onion is
           where choosing pays.{" "}
           <Link href="/results" className="font-semibold text-leaf-800 underline">
             Full results and limits

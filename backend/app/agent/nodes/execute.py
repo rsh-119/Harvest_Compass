@@ -9,8 +9,8 @@ from typing import Any
 from app.agent.state import AgentState, Mandi
 from app.agent.trace import emit
 from app.clock import today_ist
-from app.config import settings
 from app.data.cache import Sourced
+from app.data.regions import agmark
 from app.data.synonyms import DISTRICT_ALIASES
 from app.tools import geocode, mandi, routing, weather
 from app.tools.mandi import PriceRow
@@ -61,7 +61,7 @@ async def _locate(state: AgentState, rows: list[PriceRow]) -> list[Mandi]:
     centres = await asyncio.gather(
         *(
             geocode.search(
-                f"{DISTRICT_ALIASES.get(d, d)} district, {settings.state}, India", limit=1
+                f"{DISTRICT_ALIASES.get(d, d)} district, {state['region']}, India", limit=1
             )
             for d in districts
         )
@@ -78,7 +78,7 @@ async def _locate(state: AgentState, rows: list[PriceRow]) -> list[Mandi]:
             mandis.setdefault(k, Mandi(key=k, market=r.market, district=r.district))
     t0 = time.monotonic()
     found_places = await asyncio.gather(
-        *(geocode.locate_mandi(m.market, m.district, settings.state) for m in mandis.values())
+        *(geocode.locate_mandi(m.market, m.district, state["region"]) for m in mandis.values())
     )
     for m, p in zip(mandis.values(), found_places, strict=True):
         m.location = p.data
@@ -135,10 +135,12 @@ async def execute(state: AgentState) -> dict[str, Any]:
                 status="error",
                 error="disabled by test switch",
             )
-        return await mandi.current_prices(crop)
+        return await mandi.current_prices(crop, agmark(state["region"]))
 
     async def hist() -> list[Sourced[list[PriceRow]]]:
-        return await mandi.history(crop, HISTORY_DAYS, end=today_ist() - timedelta(days=1))
+        return await mandi.history(
+            crop, HISTORY_DAYS, end=today_ist() - timedelta(days=1), state=agmark(state["region"])
+        )
 
     async def wx() -> Sourced[dict[str, Any]] | None:
         models = weather_models(faults)

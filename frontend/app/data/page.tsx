@@ -85,8 +85,9 @@ export default function Data() {
         <div>
           <h2 className="font-display text-3xl font-bold">Mandi fee</h2>
           <p className="mt-3 text-lg text-ink-700">
-            Under the Madhya Pradesh Krishi Upaj Mandi Adhiniyam 1972, section 19(2), the buyer pays the market fee and it
-            can&apos;t be deducted from the farmer&apos;s price. So the seller&apos;s fee is zero. Hammali and weighing
+            In Madhya Pradesh, under the Krishi Upaj Mandi Adhiniyam 1972, section 19(2), the buyer pays the market fee
+            and it can&apos;t be deducted from the farmer&apos;s price, so the seller&apos;s fee is zero. Other states
+            have their own rules, which we haven&apos;t verified, so there the answer says the fee isn&apos;t included. Hammali and weighing
             charges are set by each mandi committee, so the farmer enters them if they pay them; nothing is assumed.
           </p>
         </div>
