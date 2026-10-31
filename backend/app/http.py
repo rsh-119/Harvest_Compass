@@ -5,6 +5,7 @@ Nominatim's policy requires an identifying UA, so the UA is set here once.
 """
 
 import asyncio
+import re
 from typing import Any
 
 import httpx
@@ -15,6 +16,15 @@ client = httpx.AsyncClient(
     headers={"User-Agent": settings.nominatim_user_agent},
     timeout=httpx.Timeout(30, connect=10),
 )
+
+
+# Error text from httpx includes the request URL, and data.gov.in takes its key in the URL.
+_SECRET = re.compile(r"((?:api[-_]?key|key|token)=)[^&\s'\"]+", re.IGNORECASE)
+
+
+def describe(e: BaseException) -> str:
+    """'ErrorType: message' with any key in a URL masked, safe to show in /health and the trace."""
+    return _SECRET.sub(r"\g<1>***", f"{type(e).__name__}: {e}")
 
 
 async def request_json(method: str, url: str, *, retries: int = 1, **kwargs: Any) -> Any:

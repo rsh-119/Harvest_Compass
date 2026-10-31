@@ -11,7 +11,7 @@ from typing import Any
 
 from app.config import settings
 from app.data.cache import get_pool
-from app.http import request_json
+from app.http import describe, request_json
 from app.tools import mandi, routing, voice, weather
 
 _memo: tuple[float, dict[str, Any]] | None = None
@@ -59,7 +59,7 @@ async def _check(fn: Any) -> dict[str, Any]:
         await fn()
         return {"ok": True, "ms": int((time.monotonic() - t0) * 1000)}
     except Exception as e:
-        return {"ok": False, "error": f"{type(e).__name__}: {e}"[:200]}
+        return {"ok": False, "error": describe(e)[:200]}
 
 
 async def status() -> dict[str, Any]:

@@ -17,6 +17,7 @@ from psycopg_pool import AsyncConnectionPool
 from pydantic import BaseModel
 
 from app.config import settings
+from app.http import describe
 
 log = logging.getLogger("cache")
 T = TypeVar("T")
@@ -119,7 +120,7 @@ async def cached(
     try:
         payload = await fetch()
     except Exception as e:  # any failure -> fall back to old real data, never to made-up data
-        err = f"{type(e).__name__}: {e}"[:300]
+        err = describe(e)[:300]
         if hit:
             return Sourced(
                 data=hit[0], source_url=hit[1], fetched_at=hit[2], status="stale_cache", error=err

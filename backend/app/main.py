@@ -20,7 +20,7 @@ from app.data import request_log
 from app.data.cache import close_pool
 from app.faults import FAULTS
 from app.health import status as health_status
-from app.http import client
+from app.http import client, describe
 from app.languages import LANGS, LangCode
 from app.ratelimit import limit
 from app.tools import voice
@@ -77,7 +77,7 @@ async def run_agent(req: AskRequest) -> AsyncIterator[str]:
         log.exception("agent failed")
         err = {
             "event": "error",
-            "en": f"Agent error: {type(e).__name__}: {e}",
+            "en": f"Agent error: {describe(e)}",
             "hi": "कुछ गड़बड़ हो गई",
         }
         await request_log.record(int((time.monotonic() - start) * 1000), [*events, err], {})

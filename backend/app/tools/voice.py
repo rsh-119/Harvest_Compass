@@ -8,7 +8,7 @@ from datetime import UTC, date, datetime
 from app.clock import today_ist
 from app.config import settings
 from app.data.cache import Sourced, cached, get_pool
-from app.http import request_json
+from app.http import describe, request_json
 from app.languages import LANGS
 
 STT_URL = "https://api.sarvam.ai/speech-to-text"
@@ -90,7 +90,7 @@ async def transcribe(audio: bytes, filename: str, mime: str, lang: str = "en") -
             source_url=STT_URL,
             fetched_at=None,
             status="error",
-            error=f"{type(e).__name__}: {e}"[:300],
+            error=describe(e)[:300],
         )
 
 
