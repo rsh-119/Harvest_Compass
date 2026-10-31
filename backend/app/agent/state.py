@@ -20,6 +20,7 @@ class Intent(BaseModel):
     quantity: float | None = None
     unit: Literal["quintal", "bori", "kg", "ton"] | None = None
     village: str | None = None  # Latin script
+    village_as_said: str | None = None  # original script, e.g. "खाचरौद" (OSM has Hindi names too)
     district: str | None = None
     ready_from: date | None = None
     ready_to: date | None = None

@@ -35,7 +35,8 @@ Max 60 words (about 20 seconds spoken). Say: best mandi, net rupees per quintal 
 harvest days if given, confidence. Write every number with digits, copied exactly from the facts.
 Do not add any other number. If "wait" is present, say it is a trend, not a forecast.
 The net figure is the price after transport and charges, NOT profit: say "खर्च काटकर आपके हाथ में"
-or "शुद्ध भाव". Never say "लाभ" or "मुनाफ़ा" (cultivation cost is not subtracted)."""
+or "शुद्ध भाव". Never say "लाभ" or "मुनाफ़ा" (cultivation cost is not subtracted).
+Write mandi names exactly as given in the facts, in Latin letters. Never translate them."""
 
 
 def hi_date(iso: str) -> str:
@@ -129,10 +130,18 @@ async def explain(state: AgentState) -> dict[str, Any]:
             break
         bad = invented_numbers(text, allowed)
         invented_total += len(bad)
-        if text and not bad:
+        # A transliterated name can turn into a different town (Badnagar -> "बदनावर" = Badnawar).
+        name_ok = facts["best_mandi"] in text
+        if text and not bad and name_ok:
             answer = text
             break
-        problem = f"numbers not in the facts {bad}" if bad else "empty answer"
+        problem = (
+            f"numbers not in the facts {bad}"
+            if bad
+            else "empty answer"
+            if not text
+            else f"mandi name '{facts['best_mandi']}' missing or changed"
+        )
         nxt = "retrying" if attempt == 0 else "using template"
         emit(
             "explain",
@@ -144,6 +153,8 @@ async def explain(state: AgentState) -> dict[str, Any]:
             f"These numbers are not in the facts: {bad}. Rewrite using only fact numbers."
             if bad
             else "Answer now, briefly."
+            if not text
+            else f"Write the mandi name exactly as '{facts['best_mandi']}'."
         )
         messages += [{"role": "assistant", "content": text}, {"role": "user", "content": fix}]
     if not answer:

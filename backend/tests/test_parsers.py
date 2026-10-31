@@ -66,3 +66,19 @@ def test_number_validator() -> None:
     ok = allowed_numbers(facts)
     assert invented_numbers("शुद्ध 6830 रुपये, कुल 2,73,200, २ नवंबर", ok) == []
     assert invented_numbers("भाव 7000 रुपये", ok) == ["7000"]
+
+
+def test_town_matches_its_tahsil_name_but_villages_do_not() -> None:
+    from app.agent.nodes.understand import _score
+    from app.tools.geocode import Place
+
+    town = Place(
+        name="Dr. Ambedkar Nagar",
+        display_name="Dr. Ambedkar Nagar, Mhow Tahsil, Indore, Madhya Pradesh, India",
+        lat=22.55,
+        lon=75.76,
+        kind="town",
+    )
+    village = town.model_copy(update={"name": "Kodariya", "kind": "village"})
+    assert _score("Mhow", town) == 100
+    assert _score("Mhow", village) < 60

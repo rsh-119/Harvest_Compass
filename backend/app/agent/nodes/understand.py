@@ -17,7 +17,7 @@ from app.config import settings
 from app.data.synonyms import normalize_crop
 from app.faults import clean
 from app.llm import chat
-from app.tools.geocode import Place, search
+from app.tools.geocode import Place, search, search_settlements
 from app.tools.routing import haversine_km
 
 SCHEMA = {
@@ -37,6 +37,10 @@ SCHEMA = {
         "village": {
             "type": ["string", "null"],
             "description": "village/town name transliterated to Latin script",
+        },
+        "village_as_said": {
+            "type": ["string", "null"],
+            "description": "village exactly as the farmer said it, in the original script",
         },
         "district": {"type": ["string", "null"], "description": "district in Latin script if said"},
         "ready_from": {
@@ -66,7 +70,8 @@ LARGE_QTY_Q = 2000  # 200 tonnes: far above a typical MP farm's harvest, worth a
 
 PROMPT = """You extract a farmer's request (Hindi, Hinglish or English) into the set_intent tool.
 Today is {today}. Convert relative dates (aaj, kal, parson, agle hafte, 5 din baad) to ISO dates.
-Number words count: "chalis" = 40. "bori"/"bora" = unit bori. Transliterate the village to Latin.
+Number words count: "chalis" = 40. "bori"/"bora" = unit bori. Transliterate the village to Latin
+using its usual English spelling where you know it (महू = Mhow, खाचरौद = Khachrod).
 Only fill what the farmer actually said; use null otherwise. Never guess."""
 
 
@@ -102,6 +107,7 @@ async def extract(text: str, question: str | None = None) -> Intent:
         quantity=args.get("quantity"),
         unit=unit,
         village=args.get("village"),
+        village_as_said=args.get("village_as_said"),
         district=args.get("district"),
         ready_from=args.get("ready_from") or None,
         ready_to=args.get("ready_to") or None,
@@ -122,11 +128,38 @@ def to_quintals(i: Intent, bori_kg: float | None) -> float | None:
     return None if factor is None else i.quantity * factor
 
 
-async def match_village(name: str, district: str | None) -> tuple[Place | None, list[Place]]:
+def _tahsil(p: Place) -> str:
+    """'Dr. Ambedkar Nagar, Mhow Tahsil, Indore, ...' -> 'mhow'."""
+    part = next((x for x in p.display_name.split(", ") if x.endswith(" Tahsil")), "")
+    return part.removesuffix(" Tahsil").lower()
+
+
+def _score(name: str, p: Place) -> float:
+    # A town is also known by its tahsil's name (OSM: "Dr. Ambedkar Nagar" is Mhow). Only for
+    # towns: every village in Mhow Tahsil would match "Mhow" otherwise.
+    s = fuzz.WRatio(name.lower(), p.name.lower())
+    if p.kind in ("city", "town") and _tahsil(p):
+        s = max(s, fuzz.WRatio(name.lower(), _tahsil(p)))
+    return float(s)
+
+
+async def match_village(
+    name: str, district: str | None, as_said: str | None = None
+) -> tuple[Place | None, list[Place]]:
     """(confident match, candidates to confirm). Confident = fuzzy score ≥ 90 and at least 10
     points ahead of the runner-up."""
-    q = ", ".join(p for p in (name, district, settings.state, "India") if p)
-    res = await search(q, limit=5)
+    # Try in order until OSM returns a real settlement:
+    #   Latin name; the farmer's own words (OSM also indexes Hindi names); and, with no district,
+    #   "Shajapur, Shajapur" (alone, "Shajapur" finds only the district).
+    queries = [", ".join(p for p in (name, district, settings.state, "India") if p)]
+    if as_said and as_said != name:
+        queries.append(", ".join(p for p in (as_said, district, settings.state, "India") if p))
+    if not district:
+        queries.append(f"{name}, {name}, {settings.state}, India")
+    for q in queries:
+        res = await search_settlements(q, limit=5)
+        if res.data:
+            break
     emit(
         "tool_call",
         f"Looking up village '{name}' on OpenStreetMap",
@@ -135,18 +168,18 @@ async def match_village(name: str, district: str | None) -> tuple[Place | None, 
         status=res.status,
         source_url=res.source_url,
     )
-    # "Ujjain, Madhya Pradesh, India" is the district, not a place to drive from. Settlements
-    # always carry more parts (tahsil, district...), so short names don't count as rivals.
-    cands = [
-        p
-        for p in res.data or []
-        if settings.state.lower() in p.display_name.lower() and p.display_name.count(",") > 2
-    ]
-    scored = sorted(
-        ((fuzz.WRatio(name.lower(), p.name.lower()), p) for p in cands), key=lambda x: -x[0]
-    )
+    cands = [p for p in res.data or [] if settings.state.lower() in p.display_name.lower()]
+    scored = sorted(((_score(name, p), p) for p in cands), key=lambda x: -x[0])
     if not scored:
-        return None, []
+        # Some towns exist in OSM only as their tahsil (Badnagar, Mahidpur). Offer the tahsil
+        # as a question, never as a silent answer: its point can be a few km from the town.
+        tahsils = await search(f"{name} Tahsil, {district or ''}, {settings.state}, India", limit=3)
+        opts = [
+            p
+            for p in tahsils.data or []
+            if p.name.endswith(" Tahsil") and fuzz.WRatio(name.lower(), p.name[:-7].lower()) >= 90
+        ]
+        return None, opts
     best_score, best = scored[0]
     # OSM often returns one place twice (town + tahsil area). Entries within 10 km of the best
     # are the same place, so they don't make the answer ambiguous.
@@ -205,10 +238,15 @@ async def understand(state: AgentState) -> dict[str, Any]:
             needs="confirm_qty",
         )
     place: Place | None = req.place
+    if place is None and not intent.village and intent.district:
+        # "सोयाबीन है, शाजापुर": a lone town name lands in district; it's where they are.
+        intent = intent.model_copy(update={"village": intent.district})
     if place is None:
         if not intent.village:
             return _ask("आपका गाँव कौन सा है?", "Which village?", intent)
-        place, options = await match_village(intent.village, intent.district)
+        place, options = await match_village(
+            intent.village, intent.district, intent.village_as_said
+        )
         if place is None and options:
             o = options[0]
             return _ask(

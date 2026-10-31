@@ -22,6 +22,7 @@ class Place(BaseModel):
     display_name: str
     lat: float
     lon: float
+    kind: str = ""  # OSM place type (town, village...) when known
 
 
 async def _rate_limited_get(params: dict[str, Any]) -> Any:
@@ -60,6 +61,40 @@ async def search(query: str, limit: int = 5) -> Sourced[list[Place]]:
         ]
 
     res = await cached(f"geo:en:{query.lower()}:{limit}", f"{URL}?{urlencode(params)}", None, fetch)
+    return res.map(lambda ps: [Place(**p) for p in ps])
+
+
+SETTLEMENTS = {"city", "town", "village", "hamlet"}
+
+
+async def search_settlements(query: str, limit: int = 5) -> Sourced[list[Place]]:
+    """Like search(), but only real places people live in (OSM category "place"): no district
+    boundaries, roads or railway stations. A district's centre can be 35 km from its town."""
+    params = {
+        "q": query,
+        "format": "jsonv2",
+        "limit": limit,
+        "countrycodes": "in",
+        "accept-language": "en",
+    }
+
+    async def fetch() -> list[dict[str, Any]]:
+        body = await _rate_limited_get(params)
+        return [
+            {
+                "name": p.get("name", ""),
+                "display_name": p["display_name"],
+                "lat": float(p["lat"]),
+                "lon": float(p["lon"]),
+                "kind": p["type"],
+            }
+            for p in body
+            if p.get("category") == "place" and p.get("type") in SETTLEMENTS
+        ]
+
+    res = await cached(
+        f"geo:settle2:{query.lower()}:{limit}", f"{URL}?{urlencode(params)}", None, fetch
+    )
     return res.map(lambda ps: [Place(**p) for p in ps])
 
 
