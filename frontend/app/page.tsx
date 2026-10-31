@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import BacktestCard from "@/components/BacktestCard";
 import { useEffect, useRef, useState } from "react";
 import {
   ask,
@@ -335,6 +336,7 @@ const SOURCE_HI: Record<string, string> = {
 function Footer({ h, faults, setFaults }: { h: Health; faults: string[]; setFaults: (f: string[]) => void }) {
   return (
     <footer className="mt-8 space-y-3 text-sm text-ink-600">
+      <BacktestCard />
       <details className="rounded-2xl border border-ink-200 bg-white p-4">
         <summary className="cursor-pointer font-semibold text-ink-800">
           स्रोत स्थिति {h.status === "ok" ? "✅" : "⚠️"} <span className="font-normal text-ink-500">(source health)</span>

@@ -13,6 +13,7 @@ from fastapi.responses import StreamingResponse
 
 from app.agent.graph import graph
 from app.agent.state import AskRequest
+from app.backtest import run_backtest as backtest
 from app.config import settings
 from app.data.cache import close_pool
 from app.faults import FAULTS
@@ -120,3 +121,9 @@ async def transcribe(audio: UploadFile) -> dict[str, str]:
     if res.data is None:
         raise HTTPException(502, f"speech-to-text failed: {res.error}")
     return {"text": res.data}
+
+
+@app.get("/backtest")
+async def backtest_results() -> list[dict[str, Any]]:
+    """Latest stored backtest run per crop (run offline with app.backtest.run_backtest)."""
+    return await backtest.latest()
