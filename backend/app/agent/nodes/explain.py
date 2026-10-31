@@ -33,7 +33,7 @@ MONTHS_HI = [
 
 PROMPT = """You are speaking to a farmer in simple {language}. Use ONLY the facts in the JSON.
 Max 60 words (about 20 seconds spoken). Say: best mandi, net rupees per quintal and total, safest
-harvest days if given, confidence. Write every number with digits, copied exactly from the facts.
+harvest days if given (if there are none, don't mention harvest days), confidence. Write every number with digits, copied exactly from the facts.
 Do not add any other number. If "wait" is present, say it is a trend, not a forecast.
 The net figure is the money in hand after transport and charges, NOT profit (cultivation cost is
 not subtracted), so never call it profit. Write month names and the confidence word in the

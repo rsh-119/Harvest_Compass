@@ -10,7 +10,7 @@
     "ask_agent": "Ask the agent",
     "menu": "Menu",
     "tagline": "Which mandi, which day.",
-    "footer_built": "Mandi and harvest decisions for soybean and onion farmers.",
+    "footer_built": "Mandi and harvest decisions for India's farmers.",
     "attr_prices": "Mandi prices: data.gov.in, Government Open Data License – India.",
     "attr_weather": "Weather data by",
     "attr_map": "Roads, places and map ©",
@@ -22,7 +22,7 @@
   "home": {
     "hero_l1": "Which mandi,",
     "hero_l2": "which day.",
-    "hero_sub": "Harvest Compass tells a soybean or onion farmer which mandi pays the most once transport is paid for, and which days are dry enough to harvest. Ask in English, Hindi or 21 other Indian languages, by voice or text.",
+    "hero_sub": "Harvest Compass tells a farmer which mandi pays the most once transport is paid for, and which days are dry enough to harvest. Wheat, paddy, soybean, onion, potato, pulses, vegetables and more. Ask in English, Hindi or 21 other Indian languages, by voice or text.",
     "cta_ask": "Ask a question",
     "cta_how": "See how it works",
     "figure_label": "What the agent does with one question",
@@ -293,7 +293,7 @@
   "about": {
     "title": "Public data, put to work for the person who grows the crop.",
     "p1": "India publishes daily prices from mandis across the country, and global weather models are free to use. But this data is scattered, in English, unchecked, and shaped for analysts. A farmer with 40 quintals still decides with a phone call to a trader.",
-    "p2": "Harvest Compass brings that data to one question asked in the farmer's own language, checks it before trusting it, and shows its working. It covers soybean and onion for any village in India, using the mandis that report in the farmer's state. Built for FORGE '26.",
+    "p2": "Harvest Compass brings that data to one question asked in the farmer's own language, checks it before trusting it, and shows its working. It covers the crops data.gov.in reports, from wheat and paddy to vegetables, for any village in India, using the mandis that report in the farmer's state. Built for FORGE '26.",
     "team_title": "Team",
     "next_title": "What's next",
     "next": [
@@ -398,7 +398,7 @@
     "st_error": "failed",
     "language": "Language",
     "ex1": "I have 40 quintals of soybean in Sanwer village, Indore. It will be ready between 2 and 5 November. Where should I sell?",
-    "ex2": "30 quintals of onion, village Lasalgaon, Nashik. I have storage. Should I wait 5 days or sell now?",
+    "ex2": "50 quintals of rice in Karnal, Haryana. I have storage. Should I wait 5 days or sell now?",
     "map_home": "Home",
     "map_village": "Your village",
     "src_mandi_prices": "Mandi prices (data.gov.in)",
@@ -407,6 +407,7 @@
     "src_geocoding": "Place search (Nominatim)",
     "src_database": "Cache database",
     "src_llm": "Language model",
-    "src_voice": "Voice (Sarvam)"
+    "src_voice": "Voice (Sarvam)",
+    "read_aloud": "🔊 Read answers aloud (spoken questions always get a spoken answer)"
   }
 }

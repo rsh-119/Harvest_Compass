@@ -6,7 +6,7 @@ from typing import Any
 from app.agent.state import AgentState
 from app.agent.trace import emit
 from app.config import settings
-from app.data.synonyms import PERISHABLE
+from app.data.crops import PERISHABLE
 
 
 def make_plan(state: AgentState) -> list[dict[str, str]]:

@@ -28,7 +28,7 @@ from app.agent.state import Mandi
 from app.clock import today_ist
 from app.config import settings
 from app.data.cache import close_pool, get_pool
-from app.data.synonyms import PERISHABLE
+from app.data.crops import PERISHABLE
 from app.http import client
 from app.scoring.net_profit import Candidate, rank, ranking_price
 from app.tools import geocode, mandi, routing

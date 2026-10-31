@@ -6,7 +6,7 @@ from typing import Any
 from app.agent.state import AgentState, Mandi
 from app.agent.trace import emit
 from app.clock import today_ist
-from app.data.synonyms import PERISHABLE
+from app.data.crops import PERISHABLE
 from app.scoring.harvest_window import Day, risk, score_window
 from app.scoring.net_profit import (
     Candidate,

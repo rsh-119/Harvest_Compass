@@ -3,7 +3,8 @@
 from datetime import date
 
 from app.agent.nodes.explain import allowed_numbers, invented_numbers
-from app.data.synonyms import market_town, normalize_crop, normalize_market
+from app.data.crops import PERISHABLE, normalize_crop
+from app.data.synonyms import market_town, normalize_market
 from app.tools.mandi import parse_row
 from app.tools.weather import parse
 
@@ -58,7 +59,7 @@ def test_names() -> None:
     assert normalize_market("Ashta  APMC") == "ashta apmc"
     assert market_town("Mhow (Ambedkar Nagar) (F&V) APMC") == "Mhow"
     assert normalize_crop("Pyaaz") == "Onion" and normalize_crop("सोयाबीन") == "Soyabean"
-    assert normalize_crop("gehu") is None
+    assert normalize_crop("gehu") == "Wheat"  # wheat is covered now
 
 
 def test_number_validator() -> None:
@@ -120,3 +121,14 @@ def test_state_from_osm_address() -> None:
     assert state_of("Model Town, Lahore, Punjab, Pakistan") is None
     assert state_of("Kathmandu, Bagmati, Nepal") is None
     assert agmark("Kerala") == "Keralam" and agmark("Gujarat") == "Gujarat"
+
+
+def test_any_listed_crop_is_matched() -> None:
+    assert normalize_crop("rice") == "Paddy(Common)"  # sold as paddy at the mandi
+    assert normalize_crop("chawal") == "Rice"
+    assert normalize_crop("Wheat") == "Wheat"
+    assert normalize_crop("arhar") == normalize_crop("Tur") == "Red gram/Arhar/Tur(whole)"
+    assert normalize_crop("tomatoes") == "Tomato"
+    assert normalize_crop("Chickpea") == "Bengal Gram(Gram)(Whole)"
+    assert normalize_crop("saffron") is None  # not in the price list: say so, don't guess
+    assert "Tomato" in PERISHABLE and "Wheat" not in PERISHABLE

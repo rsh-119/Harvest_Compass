@@ -65,6 +65,9 @@ export default function AskPage() {
   const [params, setParams] = useState<Params>(DEFAULT_PARAMS);
   const [error, setError] = useState<string | null>(null);
   const [recording, setRecording] = useState(false);
+  // Spoken replies cost Sarvam credits: only when the farmer spoke, or switched this on.
+  const [readAloud, setReadAloud] = useState(false);
+  const lastSpoken = useRef(false); // was the latest question asked with the mic?
   const recorder = useRef<MediaRecorder | null>(null);
   const lastText = useRef("");
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
@@ -95,7 +98,7 @@ export default function AskPage() {
     setTrace([]);
     setAudioUrl(null);
     try {
-      await ask({ ...body, params: { ...params, ...body.params }, faults, speak: langInfo.voice, lang }, (e) => {
+      await ask({ ...body, params: { ...params, ...body.params }, faults, speak: langInfo.voice && (readAloud || lastSpoken.current), lang }, (e) => {
         if (e.event === "audio") {
           const bytes = Uint8Array.from(atob(String((e as TraceEvent).wav_b64)), (c) => c.charCodeAt(0));
           const url = URL.createObjectURL(new Blob([bytes], { type: "audio/wav" }));
@@ -119,9 +122,10 @@ export default function AskPage() {
     }
   }
 
-  function submit(t = text) {
+  function submit(t = text, spoken = false) {
     const q = t.trim();
     if (!q || busy) return;
+    lastSpoken.current = spoken; // taps on follow-up buttons keep the same mode
     const body: AskBody = { text: q };
     if (pending && !pending.unsupported) {
       // Answering our question: carry the intent forward instead of starting over.
@@ -172,7 +176,7 @@ export default function AskPage() {
         try {
           const said = await transcribe(new Blob(chunks, { type: rec.mimeType }), lang);
           setText(said);
-          submit(said);
+          submit(said, true);
         } catch (err) {
           setError(err instanceof Error && err.message.includes("limit") ? t("voice_limit") : t("stt_failed"));
         }
@@ -273,6 +277,12 @@ export default function AskPage() {
             {busy ? t("thinking") : t("ask")}
           </button>
         </div>
+        {langInfo.voice && (
+          <label className="mt-2 flex items-center gap-2 text-sm text-ink-600">
+            <input type="checkbox" checked={readAloud} onChange={(e) => setReadAloud(e.target.checked)} />
+            {t("read_aloud")}
+          </label>
+        )}
         {!final && !busy && (
           <div className="mt-3 space-y-1">
             <p className="text-xs text-ink-500">{t("examples")}</p>

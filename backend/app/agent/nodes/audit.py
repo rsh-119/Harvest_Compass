@@ -8,7 +8,7 @@ from app.agent.state import AgentState, Mandi
 from app.agent.trace import emit
 from app.clock import today_ist
 from app.config import settings
-from app.data.synonyms import PERISHABLE
+from app.data.crops import PERISHABLE
 from app.scoring import audit_rules as rules
 from app.scoring.audit_rules import Finding
 from app.tools.mandi import PriceRow

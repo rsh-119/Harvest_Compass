@@ -2,7 +2,7 @@
 
 **Which mandi to sell in, and which days are safe to harvest and transport.** A farmer anywhere in India asks in their own language, by voice or text. An agent pulls live mandi prices, two weather models and real road distances, checks the data, and replies in plain language, spoken where a voice exists. It shows every step, every source, and every number's origin.
 
-Built for FORGE '26. Region: all of India. The farmer's state is read from their village on OpenStreetMap, and that state's mandis within 150 km are compared (widened to 250 km when data is thin). Crops: soybean (reported in 8 states) and onion (26 states). The backtest is run on Madhya Pradesh villages.
+Built for FORGE '26. Region: all of India. The farmer's state is read from their village on OpenStreetMap, and that state's mandis within 150 km are compared (widened to 250 km when data is thin). Crops: the 80 commodities data.gov.in reports most often (wheat, paddy, maize, soybean, onion, potato, tomato, pulses, oilseeds, cotton, vegetables and fruit), matched from the farmer's own word ("dhan", "gehun", "arhar"). "Rice" means paddy, since that's what farmers sell at the mandi. Vegetables and fruit get a shorter drive limit. The backtest covers soybean and onion in Madhya Pradesh.
 
 ## The problem
 A farmer with 40 quintals of soybean usually sells at the nearest mandi, or wherever a trader says. Prices differ between mandis, and so does the transport cost to reach them. Some published prices are stale, or are outliers from one odd lot. Rain on harvest or transport day ruins crop. The information is public but scattered, in English, and unchecked.

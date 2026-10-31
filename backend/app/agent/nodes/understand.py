@@ -13,8 +13,8 @@ from rapidfuzz import fuzz
 from app.agent.state import AgentState, Intent
 from app.agent.trace import emit
 from app.clock import today_ist
+from app.data.crops import normalize_crop
 from app.data.regions import state_of
-from app.data.synonyms import normalize_crop
 from app.faults import clean
 from app.languages import localise
 from app.llm import chat
@@ -30,7 +30,7 @@ SCHEMA = {
         },
         "crop_english": {
             "type": ["string", "null"],
-            "description": "English crop name, e.g. Soybean, Onion",
+            "description": "plain English crop name, e.g. Soybean, Onion, Wheat, Paddy, Potato, Chickpea",
         },
         "variety": {"type": ["string", "null"]},
         "quantity": {"type": ["number", "null"]},
@@ -218,19 +218,18 @@ async def understand(state: AgentState) -> dict[str, Any]:
         "आपकी बात समझी",
         intent=intent.model_dump(mode="json"),
     )
-    crops_hi = "सोयाबीन या प्याज़"
     if intent.crop is None:
         if intent.crop_word:
             return await _ask(
-                f"माफ़ कीजिए, अभी हम सिर्फ़ {crops_hi} के लिए सलाह देते हैं।",
-                f"Sorry, '{intent.crop_word}' isn't covered yet. Right now we only advise on soybean and onion.",
+                f"माफ़ कीजिए, '{intent.crop_word}' मंडी भाव की सूची में नहीं मिला। फसल का दूसरा नाम बताइए।",
+                f"Sorry, I couldn't find '{intent.crop_word}' in the mandi price list. Try another name for the crop.",
                 intent,
                 req.lang,
                 unsupported=True,
             )
         return await _ask(
-            f"कौन सी फसल बेचनी है — {crops_hi}?",
-            "Which crop are you selling: soybean or onion?",
+            "कौन सी फसल बेचनी है?",
+            "Which crop are you selling?",
             intent,
             req.lang,
         )
