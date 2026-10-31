@@ -1,0 +1,412 @@
+{
+  "common": {
+    "nav": {
+      "how": "Eikphang nunggi",
+      "results": "Nanggi nunggi",
+      "data": "Data & Nunggi nunggi",
+      "about": "Eikphang nunggi"
+    },
+    "ask_btn": "Nanggi nunggi",
+    "ask_agent": "Agent-gi nunggi nunggi",
+    "menu": "মেনু",
+    "tagline": "Eikphang mandi, eikphang nunggi.",
+    "footer_built": "Soybean & Onion farmer-gandagi mandi nunggi nunggi.",
+    "attr_prices": "Mandi nunggi: data.gov.in, Government Open Data License – India.",
+    "attr_weather": "Weather data nunggi",
+    "attr_map": "Road, nunggi, nunggi & map ©",
+    "attr_osm": "OpenStreetMap মপুং ফাবা মীয়াম",
+    "attr_speech": "Sarvam AI-gi nunggi",
+    "loading": "লোড তৌরি…",
+    "backend_down": "Nanggi nunggi eikphang nunggi. Nunggi nunggi nunggi."
+  },
+  "home": {
+    "hero_l1": "কোন মণ্ডি,",
+    "hero_l2": "কোন নুমিৎ।",
+    "hero_sub": "Harvest Compass না সোয়াবিন নত্ত্রগা পিয়াজ লৌমীদা মণ্ডি অমা হেন্না হেনগৎ পীবগে হায়বসি হায়, মরুং চাংবগী সেং ফাংখ্রবা মতুংদা, অমসুং করিগুম্বা নুমিত্তা লৌবগীদমক হৌজিক ফজনা লৈবগে হায়। ইংরেজি, হিন্দি নত্ত্রগা 21 হেন্না ভারতগী লোলদা, ৱাহৈ নত্ত্রগা মসিং নত্ত্রগা হংবা।",
+    "cta_ask": "ৱাহং অমা হংবা",
+    "cta_how": "মসি করিগুম্বা থবক তৌবগে হায়বসি য়েংবা",
+    "figure_label": "এজেন্ট না ৱাহং অমগা লোয়ননা করি তৌবগে",
+    "demo_question": "ঐনা সানৱের খুন্গাইদা সোয়াবিন 40 কুইন্টাল লৈ। করম্বা মফমদা য়োংখিগে?",
+    "steps": [
+      {
+        "t": "খঙবা",
+        "d": "লৌ, অপুনবা অমসুং খুন্গাই"
+      },
+      {
+        "t": "মপুং ফাবা",
+        "d": "করিগুম্বা মসোর্সদা কৌগে"
+      },
+      {
+        "t": "লাকপা",
+        "d": "মমল, ৱেদর মডেল অনি অমসুং লম্বী km, মরুং-মরুংদা"
+      },
+      {
+        "t": "ডেটা চেক তৌবা",
+        "d": "হৌখ্রবা, মরুওইবা অমসুং মিল্লোইবা মমলদু লৌদোক্তবা"
+      },
+      {
+        "t": "পাইখৎহনবা",
+        "d": "মসোর্স অমা ফেল ওইরবা মতুংদা প্লানদু হোংদোকপা"
+      },
+      {
+        "t": "হিসাব তৌবা",
+        "d": "কুইন্টাল অমগী নেট ₹ গী মরুংদা মণ্ডিসিং র্যাংক তৌবা"
+      },
+      {
+        "t": "পাউখুম পীবা",
+        "d": "লৌমীগী লোলদা, ৱাহৈনা"
+      }
+    ],
+    "figcaption": "স্তেপ খুদিংমক লাইভ স্ট্রিম তৌ। পাউখুম পুম্নমক পীবদা 12 সেকেন্দ মানা।",
+    "problem_title": "লৌমী হেন্না নকপা মণ্ডিদা য়োংবা, নত্ত্রগা ট্রেডর না হায়বা মফমদা য়োংবা।",
+    "problems": [
+      "মণ্ডি অমদগী মণ্ডি অমদা মমল ফরক তৌ, অমসুং হেন্না ফবা মণ্ডি অমদা চৎনবা লম্বীদা সেং চাং।",
+      "পাউখুম তৌখ্রবা মমলসিং নুমিৎ হৌখ্রবা ওইবা য়াব, নত্ত্রগা কৈথেলগী মখল ওইদবা লট অমদগী লাকপা য়াব।",
+      "লৌবা নত্ত্রগা মরুং চাংবা নুমিত্তা নোং চৎলবা লৌদু নোংসিনবগে। ফোরকাস্ট লৈ, অদুবু ইংরেজিদা অমসুং মিলিমিটারদা।"
+    ],
+    "gets_title": "লৌমীনা করি ফংবগে",
+    "gets": [
+      {
+        "t": "Khongda khongda khongda",
+        "d": "Khongda khongda khongda (The market that pays the most after transport, not just the highest price)."
+      },
+      {
+        "t": "Khongda khongda khongda",
+        "d": "Khongda khongda khongda (Days when ECMWF and GFS say it will be dry, including the transport day)."
+      },
+      {
+        "t": "Khongda khongda khongda",
+        "d": "Khongda khongda khongda (What waiting 3 days might do, based on the 14-day price trend and rain risk, which is a trend, not a prediction)."
+      },
+      {
+        "t": "Khongda khongda khongda",
+        "d": "Khongda khongda khongda (Which Rampur? How many kg? Vehicle cost? One simple question instead of a made-up number)."
+      }
+    ],
+    "audit_title": "Khongda khongda khongda (Checked before trusting)",
+    "audit_body": "Khongda khongda khongda (Public price data is messy. Before ranking, the system rejects prices that are old, inconsistent, far from the market's history, or for a different variety, and names each market it dropped with the reason. The language model only phrases numbers the system computed; a checker throws out any number or market name it can't find in the facts.)",
+    "audit_link": "Khongda khongda khongda (How the checking and fixing work)",
+    "audit_caption": "Khongda khongda khongda (Real lines from the system's log, 31 Oct 2026: 40 quintals of soybean near Ujjain.)",
+    "measured_title": "Khongda khongda khongda (Measured, not promised)",
+    "measured_body": "Khongda khongda khongda (We replayed 60 days of real prices for 30 real villages in Madhya Pradesh. Each day the system chose using only what it would have known that day; we then scored it on the next day's real price against simply going to the nearest market. Transport assumed at ₹1 per quintal per km.)",
+    "measured_link": "Khongda khongda khongda (Full results and limits)",
+    "sources_intro": "Khongda khongda khongda (Data sources)",
+    "sources": [
+      "data.gov.in মণ্ডি মমল",
+      "Open-Meteo: ECMWF অমসুং GFS",
+      "OSRM লম্বী চৎনবা",
+      "OpenStreetMap Nominatim",
+      "Sarvam ৱাহৈ"
+    ],
+    "cta_title": "Khongda khongda khongda (Ask about your crop)",
+    "cta_body": "Apunggi nungda thaba thaba leira type le. Khongda thaba thaba leira khongda thaba thaba le.",
+    "cta_btn": "Eikho khongda le."
+  },
+  "live": {
+    "loading": "চাংদম পীবা ফলাফল লোড তৌরি…",
+    "fallback": "হৌজিক ফলাফল ফংদে।",
+    "open_results": "ফলাফল পেজ হাংবা",
+    "gain_note": "নাইরম্বা মণ্ডীদা চাবা কুইন্টাল অমদা মমল লাভ, {n} রিপ্লে তৌরিবা থৌরাংসিংগী মরক্তা {v} খুন্সিংদা"
+  },
+  "how": {
+    "title": "1 পুছা, 7 মরোল, পুম্নমক স্ক্রীনদা.",
+    "sub": "Harvest Compass অসি LangGraph এজেন্ট অমা. লোলগী মডেলনা পুছা পাবা অমসুং উত্তর শেম্বা. মরক্তা লৈবা পুম্নমক, রুপী পুম্নমক শামদোকপা, অসি অসেংবা কোদ অমা, চেক তৌবা য়াবা.",
+    "loop": [
+      {
+        "name": "খংহনবা",
+        "body": "লোনগী মডেল অমা ইংলিশ, হিন্দী নত্রগা ভারতগী ২১ লোনগী মনুংদা হেন্না লোন অমদা হংবা ৱাহংদু চুম্না ফর্ম অমদা হোংলিঃ লৌউ, মসিং, খুল, লৌথোকপা মতাং, গাড়ীগী মমল। স্যাকসিংদা চেন্নবা লাইবক পীবা দরকার। খুল অমা মফম অনীদা মিল্লবা নত্রগা মমল অমা লৈতবা মতুংদা, মসি ৱাহং অমা হংবা।"
+      },
+      {
+        "name": "প্লান",
+        "body": "সাধারণ নিয়মসিংনা করিগুম্বা সোর্সসিং কোৎপা অমসুং করিগীনা হায়বদু থৌরম তৌই: ঙসিগী মমল, ৩০ নুমিৎকী ইতিহাস, নিংথৌ মডেল অনী, লম্বী লম্বী। চাং নাইবা ৱাহংদা ট্রেন্ড স্টেপ হাপচিল্লি।"
+      },
+      {
+        "name": "লৌথোকপা",
+        "body": "কোৎপসিং টাইমআউট অমসুং অমা রিট্রাইগা লোয়ননা চৎলি। পুন্সি পাউখুম সোর্স URL অমসুং লৌথোকপা মতুংগা ক্যাশ তৌই, মসিগুম্বা হেন্না মতুংদা ফেলিয়র তৌবা মতুংদা অকীবা অচুম্বা ডেটাদা হোংলগা মসিগী অকীবা মতাং হায়বা ঙম্বা।"
+      },
+      {
+        "name": "অডিট",
+        "body": "চুম্না নিয়মসিং, মডেল লৈতে: ৩ নুমিৎ হেন্না অকীবা মমল, min না max হেন্না হোৎনবা, মণ্ডিগী অমগী থাগী অমসুং লমায়গী মরক্তা আউটলায়রসিং, অমসুং মিল্লদবা ভ্যারাইটি নত্রগা গ্রেড খংদোকই। পুন্সি খংদোকপা মসিগী মরমগা উৎলি।"
+      },
+      {
+        "name": "হোংদোকপা",
+        "body": "মণ্ডি খ্বাইদগী মতুং লৈরবদি, search radius হেন্না হোংই। নুমিদগী মমল পীবা লৈদ্রবদি, মণ্ডি খুদিংগী অহোংবা রিপোর্ট মসিগী হৌখিবা মতুং ইন্না শিজিন্নই। নোংপাল মডেল অমা লৈদ্রবদি, অমত্তা শিজিন্নই অমসুং নুমিৎসিং অসোইবা ওইনা খুদোংচাবা ওই।"
+      },
+      {
+        "name": "হিসাব তৌবা",
+        "body": "মণ্ডি খুদিংগী 7 নুমিৎসিংগী median মমলদগী হন্না চৎপা-লাকপা লম্বা (লম্বা × 2 × km × লৌউখিবগী রেট) ফগৎলবা অপুনবা ₹ কুইন্টাল অমদা ফংই। হেন্না লাপ্থোকপা মণ্ডি অমা হেন্না নকপা মণ্ডি অমা থেংননবা ₹50 কুইন্টাল অমদা হেন্না হেন্না থেংনবা দরকার ওই।"
+      },
+      {
+        "name": "তাকপা",
+        "body": "মডেল অসি লৌউখিবগী লোলদা 2 নত্রগা 3 ওইবা ৱাহাংগী ৱাফম শেমই, হিসাব তৌখিবা সত্যসিংদগী মখা তাংবা। চেকার অমা হিসাব নত্রগা মণ্ডিগী মিং অমা সত্যসিংদা লৈদ্রবদি হেনগৎলি, অমুক হন্না হোৎনই, অমসুং মসিদগী লোইনবা অথেংবা টেম্পলেট দা চঙই। Sarvam অসি মসি খোংচৎ ওইনা পাবি।"
+      }
+    ],
+    "rules_title": "অডিট নিয়মসিং",
+    "rules_body": "Reject thaba mandis eikho khanglamda thaba. Farmer-gi \"Mandis left out\" khanglamda eikho reason-gi thaba.",
+    "rules": [
+      {
+        "k": "হৌখিবা",
+        "v": "Price 3 din-gi aamda thaba"
+      },
+      {
+        "k": "খিন্নবা",
+        "v": "Minimum maximum-gi aamda thaba, le minimum–maximum range-gi laida price thaba"
+      },
+      {
+        "k": "অপাম চাউথোকপা",
+        "v": "Mandi-gi aamda 30 din le aamda regional price-gi laida aamda thaba (robust z-score)"
+      },
+      {
+        "k": "থেংননবা ঙমদে",
+        "v": "Region-gi aamda lot-gi laida variety le grade-gi aamda thaba"
+      },
+      {
+        "k": "মেপ তৌদে",
+        "v": "OpenStreetMap-gi mandit-gi town-gi laida pa-thaba, aduna road distance thaba"
+      }
+    ],
+    "switches_title": "Test switch-gi khanglam",
+    "switches_body": "Ask page-gi, test switch-gi laida source-gi thaba. Next question-gi: today's prices, one weather model, routing. Agent eikho skip-gi, log-gi thaba eikho recover-gi.",
+    "voice_title": "Awa",
+    "voice_body": "Sarvam speech-to-text recording-gi text-gi thaba (22 scheduled languages le English). Farmer-gi box-gi thaba eikho misheard word-gi thaba. Sarvam text-to-speech 9 language-gi thaba reply-gi thaba; ba-gi text thaba. Mic block le speech fail thaba, typing le reading thaba.",
+    "try_btn": "Question-gi try-gi"
+  },
+  "results": {
+    "title": "ঙসি মেপ তৌখিবা",
+    "sub": "অখন্নবা হিসাবসিং স্টোর তৌখিবা রানসিংদগী পাবা ওই, এজেন্ট অসি লাইনা খল্লবা থেংননবা ঙমদ্রবদি লৈবা মফমসু লোইনবা।",
+    "bt_title": "হন্না হোৎনবা: 60 নুমিৎসিং, মধ্যপ্রদেশ দা 30 খুন্গাই",
+    "bt_body": "নুমিৎ খুদিং, এজেন্ট অসি মসিগী অডিট অমসুং র্যাঙ্কিং লোইননা, নুমিৎ অসি ফাওবা ডেটা খক্তা শিজিন্ননা মণ্ডি অমা খল্লি। ঙসি খল্লবা অসি মণ্ডি অদুদা হোংজিলগী নুমিৎতা লৈবা অকীবা মমলদা স্কোর তৌখি, হেন্না নকপা রিপোর্ট তৌবা মণ্ডিদা থেংনননা। অনৌবা অসি হিন্দসাইটতা হেন্না ফবা মণ্ডিদগী কদাইদা লাপ্থোকখিবা ওই।",
+    "ground_title": "গ্রাউন্ডিং: মডেলনা নম্বর শেমদোক ইবা?",
+    "ground_body": "এজেন্ট পুম্বগী মরক্তা 20 মরোল চঙদবা ৱাহং, 31 অক্টোবর 2026 দা। পুন্সিগী পাউখুমদা লৈবা নম্বর পুম্বা কম্পিউট তৌরবা সত্যগা মিলদোকখি।",
+    "cols": {
+      "model": "মডেল",
+      "answered": "পাউখুমখি",
+      "invented": "শেমদোক ইবা নম্বর",
+      "time": "median / p95 সময়",
+      "note": "মরোল"
+    },
+    "ground_rows": [
+      {
+        "answered": "20 গী 19",
+        "time": "11.4 সেকেন্ড / 15.3 সেকেন্ড",
+        "note": "20গী মসামক্না তহচিল কনফার্ম তৌনবা চুম্না হংখি।"
+      },
+      {
+        "answered": "20 গী 19",
+        "time": "11.6 সেকেন্ড median",
+        "note": "বদনগর মরোল ওহোইবা খুঞ্জা ওইনা থমখি।"
+      },
+      {
+        "answered": "—",
+        "time": "—",
+        "note": "ঐখোয়না শিজিন্নবা ফোর্স তৌরবা টুল কলদা সাপোর্ট তৌদে।"
+      }
+    ],
+    "in_use": "শিজিন্নরিবা",
+    "usage_title": "লাইভ শিজিন্নবা, মমাংগী 7 নুমিৎ",
+    "usage_body": "সাইট অসিদা হংখিবা ৱাহং পুম্বগী লগ তৌখি। IP অমত্তা নত্তে মসিং অমত্তা থমদে।",
+    "limits_title": "চেকশিনবা",
+    "limits": [
+      "ব্যাকটেস্ট তা ট্রান্সপোর্ট অসি খল্লবা রেঞ্জ নি, লোকাল রেট অমা মীপুম চাবা নত্তে। লাইভ পাউখুম সিংনা লৌমী গী মহাক্কী রেট উজানি।",
+      "data.gov.in গী হিস্টোরি অমা নুমিৎ হন্না লৈ, অমসুং মন্দি হেন্না নুমিৎ লৈখি; হন্না লৌখিবা ৱাফম সিংগী 30–40% স্কোর তৌবা ঙমখিদে।",
+      "কুইন্টাল অমদা ₹50 গী মরোল-মরোল মার্জিন অসি অমা খুদোংচাবা ৱাফম নি।",
+      "লৌমী গী মহাক্কী স্তেট দা লৈবা মন্দি খক্তা চাংনিংই।",
+      "নুমিৎ 7 গী মমাংদা লৈবা মৌ-ওইরোং অসি মথাং পাম্বদে; মসিগী নুমিৎ সিংদা হৌজিক মথাং পাম্বা লৈতে হাইনা উৎলি।",
+      "লৌমী সিংগী অকীবা রেকর্ডিং দা খোল গী চুম্বা অসি হৌজিক মরোল তৌরি।"
+    ]
+  },
+  "backtest": {
+    "loading": "থম্লবা ব্যাকটেস্ট লোড তৌরি…",
+    "rate_label": "পরিবহন খরচ (অনুমান তৌবা, ₹ প্রতি কুইন্টাল প্রতি km):",
+    "rate_aria": "পরিবহন খরচ",
+    "window": "{n} খুন্জা, {from} দগী {to} ফাওবা",
+    "col_how": "মণ্ডী কদৌনো খল্লবা",
+    "col_gain": "মখা মথং লাভ / কুইন্টাল",
+    "col_beat": "নকুপা থেংনবা",
+    "col_regret": "রিগ্রেট / কুইন্টাল",
+    "strat": {
+      "today": "হৌজিকগী মমলদা র্যাঙ্ক",
+      "median7": "7-নুমিৎ median-দা র্যাঙ্ক",
+      "median7_near": "7-নুমিৎ median, মমল নকুপা ওইরিবা মতুংদা নকুপা (লাইভ)"
+    },
+    "crop": {
+      "Soyabean": "সোয়াবিন",
+      "Onion": "পিয়াজ"
+    }
+  },
+  "usage": {
+    "none": "ꯍꯧꯖꯤꯛ ꯐꯥꯎꯕꯒꯤ ꯅꯨꯃꯤꯠ 7 ꯗ ꯋꯥꯍꯪ ꯑꯃꯠꯇ ꯔꯦꯀꯣꯔꯗ ꯇꯧꯗ꯭ꯔꯤ꯫",
+    "questions": "ꯋꯥꯍꯪꯁꯤꯡ",
+    "median": "median ꯃꯇꯝ",
+    "p95": "95ꯁꯨꯕ ꯄꯔꯁꯦꯟꯇꯥꯏꯜ",
+    "repair": "ꯁꯦꯝꯗꯣꯛꯄ ꯑꯃ ꯃꯊꯧ ꯇꯥꯈꯤ",
+    "invented": "ꯁꯦꯝꯂꯛꯄ ꯃꯁꯤꯡꯁꯤꯡ ꯐꯥꯈꯤ",
+    "failed": "ꯍꯧꯖꯤꯛ ꯁꯤꯖꯤꯟꯅꯕꯒꯤ ꯗꯦꯇꯥ ꯐꯪꯗ꯭ꯔꯤ꯫ ꯆꯥꯟꯅꯕ ꯈꯔ ꯇꯨꯡꯗ ꯑꯃꯨꯛ ꯍꯣꯠꯅꯕꯤꯌꯨ꯫"
+  },
+  "data": {
+    "title": "নম্বর পুম্নমক লাকপা মফম",
+    "sub": "মরোল, পূর্বাভাস অমসুং দূরত্ব পুম্নমক লাইভ পাবলিক API দগী, নত্রগা অসোইবা জবাবগী থম্বা কপি দগী লাকই; মসিগী source URL অমসুং fetch time লোইননা লৈ। জবাব পুম্নমক অদু অনীমক পুথোকই।",
+    "cols": {
+      "source": "মফম",
+      "use": "শিজিন্নবা",
+      "licence": "লাইসেন্স অমসুং শর্ত"
+    },
+    "sources": [
+      {
+        "use": "ঙসিগী মন্দি মরোল (রিসোর্স 9ef84268-…) অমসুং মখল-মখলগী মরোল ইতিহাস (35985678-…)",
+        "licence": "গভর্নমেন্ট ওপেন ডেটা লাইসেন্স – ইন্দিয়া"
+      },
+      {
+        "use": "নুমিৎ খুদিংগী নোংপাল পূর্বাভাস মডেল অনীদগী, ECMWF IFS 0.25° অমসুং GFS",
+        "licence": "CC BY 4.0. মৌসম ডেটা Open-Meteo.com দগী"
+      },
+      {
+        "use": "খুঞ্জা লমদমদগী মন্দি খুদিংগী লম্বা দূরত্ব অমসুং চৎপা মতুং",
+        "licence": "OpenStreetMap ডেটা, ODbL"
+      },
+      {
+        "use": "খুঞ্জা অমসুং মন্দি শহরগী কোঅর্ডিনেট",
+        "licence": "OpenStreetMap ডেটা, ODbL. সেকেন্দা 1 request হেন্না নত্তে, ফলাফল ক্যাশ তৌই"
+      },
+      {
+        "use": "জবাব খুদিংদা লৈবা ম্যাপ",
+        "licence": "ODbL, ম্যাপদা অ্যাট্রিবিউশন লৈ"
+      },
+      {
+        "use": "ভারতগী লোল 22 অমসুং ইংরেজিদা ওয়াহা টেক্সট তৌবা (saaras:v4); লোলদা হায়বা জবাব 9 (bulbul:v4-flash)",
+        "licence": "API শর্ত"
+      },
+      {
+        "use": "লোল মডেল অ্যাক্সেস, মহুৎ অদু পাবা অমসুং জবাব ফোংদোকপু থেংনবা খক্তগী",
+        "licence": "API শর্ত"
+      }
+    ],
+    "fee_title": "মন্দি ফী",
+    "fee_body": "মধ্যপ্রদেশদা, Krishi Upaj Mandi Adhiniyam 1972, section 19(2) মখাদা, মার্কেট ফী অদু ক্রেতা পীরি অমসুং মসি লৌউখিবগী মরোলদগী হোংদোকপা য়াদে, মরমদা বিক্রেতাগী ফী 0। অপর রাজ্যসিংনা অমসুং নিয়ম থমই, মরমদা মফমদা জবাবদা মার্কেট ফী শুম্না লৈতে হায়। Hammali অমসুং ওজন চার্জ মন্দি কমিটি খুদিংনা থমই, মরমদা লৌউখিবা মসি পীরবা মতুংদা হাপচিনবা য়াই; করি অমত্তা অসমে তৌদে।",
+    "vehicle_title": "গাড়ীগী রেট",
+    "vehicle_body": "মফমদা লোরী অমসুং ট্রাক্টর হায়রিং তৌবগী মীয়ামগী হৌরকফম অমা লৈতে, মদুনা এজেন্টনা লৌমীদা হংই: km অমদা মমল কয়ামা অমসুং খোংচৎ অমদা কুইন্টাল কয়ামা পাইবা। অমুক হন্না চান্নবগীদমক পুন্সিনবদা মখোয় পুন্না শেমদোকথোকখিবা য়াই।",
+    "fail_title": "হৌরকফম অমা ফেইল ওইরকপা মতুংদা",
+    "fail_body": "এজেন্টনা মখা তম্বা অকীবা মরোলদা লৈরিবা দাতাদা হন্না লৌথোকই অমসুং মসিগী মতম হায়, নত্রগা অমুক অমা ওয়েদর মডেলদা, অমসুং মসিগী কনফিডেন্স হন্থই। মসিং তৌরিবা ভ্যালুদা মখা অমা হোংলোইদে।",
+    "privacy_title": "প্রাইভেসি",
+    "privacy_body": "হংবা খুদিং অমসুং এজেন্টগী খোংচৎ খুদিং অসি মখল অমসুং বিশ্বাসযোগ্যতা চান্নবগীদমক লোগ তৌই। IP অ্যাড্রেস অমসুং মীওই খুদিংগী মফম অকীবা লৈতে।"
+  },
+  "about": {
+    "title": "মশিং লৌউরিবা মীওইগীদমক পাব্লিক দাতা, থবক তৌদুনা",
+    "p1": "ভারত্না লম্বী-লম্বী মন্দিগী নুমিৎ-নুমিৎ মমল পুথোকই, অমসুং মপুং ফাবা ৱেদর মোদেলশিং সিজিন্নবা য়াবা। অদুবু অসি দাতা মখা-মখা, ইংলিশতা, চেক তৌদে, অমসুং এনালিস্টশিংগীদমক শেম্বা। 40 কুইন্টাল লৈবা লৌউরিবা মীওই অমনা অদুমক ত্রেডরগী ফোন কল অমদা হায়েংনা থৌরম তৌই।",
+    "p2": "Harvest Compass না অদু দাতা লৌউরিবা মীওইগী মরুওল অমদা হংবা ওহোয় অমদা পুবা, য়াম্না থাজবা মমাংদা চেক তৌবা, অমসুং মসিগী থবক উৎপা। মসি ভারতগী খুন্জা পুম্নমক্কীদমক সোয়াবিন অমসুং পিয়াজ লোয়নবা, লৌউরিবা মীওইগী স্তেততা রিপোর্ট তৌরিবা মন্দিশিং সিজিন্না। FORGE '26 গীদমক শেম্বা।",
+    "team_title": "টীম",
+    "next_title": "মথংদা করি",
+    "next": [
+      "জিলা-জিলাদা অচুম্বা ট্রান্সপোর্ট কোট, অদুনা অহানবা পাউখুমশিংদা ওহোয় অমা কম পাম্বা।",
+      "নুমিৎ-নুমিৎ মন্দি কয়াম্না রিপোর্ট তৌই অদুগী মতুং ইন্না খল্লবা মশিং হেনগৎলবা।",
+      "স্তেতগী মরী চাবা মফমশিংদা লৈবা মন্দিশিং, লৌউরিবা মীওইগী মখলগী স্তেত খক্তা নত্তে।",
+      "স্মার্টফোন লৈতবা লৌউরিবা মীওইশিংগীদমক এসএমএস নত্রগা ফোন কল চানেল অমা।",
+      "মন্দিদা লাক্লবা মশিংগী মখল, মশিং হেনগৎলকপা মতমদা মমল হন্থনবা য়াবা অদু হায়েংননবা।"
+    ],
+    "os_title": "ওপেন সোর্স",
+    "os_body": "কোদ অসি পাব্লিক লৈ",
+    "os_btn": "ওহোয় অমা হংবিয়ু"
+  },
+  "ask": {
+    "ask_title": "নহাক্কী লৌগী মরোল থাম্মু",
+    "ask_sub": "লাইভ মণ্ডী মমল, লম্বীদা মপুং ফবা অমসুং নিংথৌগী মডেল অনী, অখং অমা অমাগী মরোল",
+    "waking": "সার্ভারদা কানেক্ট তৌরি। মসি মিনিট খরা ফাওবা চাং লৈ…",
+    "down": "সার্ভারদা ফাওবা ঙম্দে",
+    "unreachable": "সার্ভারদা ফাওবা ঙম্দে। মথং চুপ্পা মরোল অমদা হন্না হোৎনবিয়ু",
+    "stt_failed": "রেকর্ডিং খুদোংচবা ঙম্দে। হন্না হংবিয়ু নত্রগা ইবু থিবিয়ু",
+    "voice_limit": "হংবগী ইনপুট হৌজিক লৈতে। নহাক্কী মরোল ইবু থিবিয়ু",
+    "mic_denied": "মাইক্রোফোন গী অনুমতি ফংদে। নহাক্কী মরোল ইবু থিবিয়ু",
+    "yes_qty": "হোয়বা, মসিং তম্বা",
+    "yes": "হোয়বা",
+    "answer_label": "নহাক্কী পাউখুম ইবু থিবিয়ু নত্রগা হংবিয়ু",
+    "ask_label": "নহাক্কী লৌগী মরোল থাম্মু, হংবগা নত্রগা ইবু থিবগা",
+    "placeholder": "মখল: ঐদা সোয়াবিন 40 কুইন্টাল লৈ, খুন্সাং সানওয়ের, ইন্দোর…",
+    "stop": "⏹ থিংবা",
+    "speak": "🎤 হংবা",
+    "thinking": "ওইরিবা…",
+    "ask": "হংবা",
+    "examples": "মখল অমা হোৎনবিয়ু:",
+    "listen": "পাউখুম তাবিয়ু",
+    "no_voice": "হংবগী পাউখুম {lang} দা হৌজিক লৈতে; পাউখুম ইবু থিবা মখলদা উৎলি",
+    "conf_high": "চিংবা: অঙাংবা",
+    "conf_medium": "চিংবা: মপুং",
+    "conf_low": "চিংবা: মথং",
+    "trace": "এজেন্টা তৌরিবা",
+    "best": "অপাম্বা মণ্ডী",
+    "same_town": "মখা মফমদা",
+    "by_road": "{km} km লম্বীদা",
+    "about_min": "{min} মিনিট মান্না",
+    "net_q": "নেট মমল / কুইন্টাল",
+    "net_total": "অপুনবা নেট ({q} q)",
+    "bad_day": "খরা নুমিদগী মমল / q",
+    "little_history": "হিস্টরি খরা",
+    "price_used": "শিজিন্নরিবা মমল {p}",
+    "median_of": "(মথংগী {n} রিপোর্টগী median)",
+    "latest": "(হৌজিক্কী মমল)",
+    "modal_today": "ঙসিগী modal মমল {p}",
+    "price_date": "মমলগী নুমিদ {d}",
+    "days_old": "({n} নুমিদ হন্না)",
+    "nearer": "{m} দা {p}/q খরা হেনগৎলি অদুবু {km} km হেনগৎলি, মসিগুম্না নকুপ্পা মণ্ডী রেকমেন্ড তৌরি",
+    "runner_up": "অনীশুবা:",
+    "ru_lower": "মমল {p} মথং",
+    "ru_higher": "মরোল {p} হেনগৎলি, অদুবু লমজিং {t}/q হেনগৎলি",
+    "ru_total": "— অপনবা {p}/q কম",
+    "safe_days": "লৌনবা অমসুং লমজিংনবা কন্বা নুমিৎ",
+    "dry": "☀️ অউবা",
+    "rain": "🌧 নোংবা ওইগনি",
+    "uncertain": " · চিংনবা",
+    "no_forecast": "হৌজিক ফোরকাস্ট লৈতে (নুমিৎ ৭গি মখা)",
+    "wait_q": "{n} নুমিৎ ঙাইগদগে?",
+    "no_trend": "মরোলগি ট্রেন্ড খংনবা হিস্টরি লৈতে।",
+    "trend": "মমাংগী নুমিৎ ১৪গি ট্রেন্ডদগি, মরোল {p}/q মথং চান্নগনি",
+    "rain_risk": "নোংবগি খুদোংচাবা {p}%",
+    "trend_note": "অসি ট্রেন্ড অমনি, ফোরকাস্ট নত্তে।",
+    "map": "মেপ",
+    "compare": "মন্দিসিং পুথোকখ্রে",
+    "col_mandi": "মন্দি",
+    "col_price": "মরোল (নুমিৎ ৭)",
+    "col_dist": "লম্বা",
+    "col_transport": "লমজিং",
+    "col_net": "নেট/q",
+    "same_town_short": "থোং অমা",
+    "costs": "খুদোংচাবা মসিং ({m})",
+    "c_price": "মরোল: {p} × {q} q = {t}",
+    "c_transport": "লমজিং: {trips} লমজিং × ২ (মরুম অমসুং হক্তা) × {km} km × {r}/km = −{t}",
+    "c_hammali": "হম্মালি/চেনবা: {v}",
+    "c_hammali_none": "হাপখ্রে নত্তে (নখোই পীরবা মথং মখা ওইরবা লৈবাক্তা ফিল ইন তৌ; মন্দি কমিটি অমগা অমগা রেট সেট তৌই)",
+    "c_fee": "মন্দি ফি লৌবা মীওইনা পীরি, লৌউবা মীওইদগি হোংদোকই নত্তে (MP Krishi Upaj Mandi Adhiniyam 1972, Sec 19(2))।",
+    "c_fee_other": "মার্কেট ফি অমত্তা হাপখ্রে নত্তে: রাজ্য অমগা অমগা নিয়ম লৈ। নখোই অমা পীরবা মথং, মখা ওইরবা চার্জ বক্সতা কুইন্টাল অমগি মরোল হাপ।",
+    "c_net": "নেট: {t}",
+    "f_rate": "গাড়ি ₹/km",
+    "f_cap": "লমজিং অমগি কুইন্টাল",
+    "f_hammali": "হম্মালি/চেনবা ₹/q (নখোই পীরবা মথং)",
+    "recalc": "হন্না চেনবা",
+    "excluded": "মন্দিসিং লোয়খ্রে ({n}) — করিগিনো?",
+    "sources": "ডেটা সোর্স",
+    "s_today": "হৌজিক্কী মরোল",
+    "s_history": "মরোলগি হিস্টরি",
+    "s_weather": "মৌওং",
+    "s_roads": "রোড লম্বা",
+    "health": "সোর্স স্টেটাস",
+    "usage": "মমাংগী নুমিৎ {d}: {n} হংবা · median {p50} s, 95% {p95} s মরক্তা · repaired {fb}% · invented numbers caught: {inv}",
+    "switches": "টেস্ট সুইচ",
+    "switches_on": "({n} ওন)",
+    "switches_note": "খল্লবা মসিং অমসুং ৱাহংদা থাদোকখিবা, নখোই এজেন্ট হৌখিবা ইচাং চাংখিবা।",
+    "st_live": "হৌজিক",
+    "st_cache": "থম্বা",
+    "st_stale_cache": "অহেন থম্বা",
+    "st_error": "থাদোকখিবা",
+    "language": "লোন",
+    "ex1": "ঐনা সানৱের খুঞ্জ, ইন্দোরদা 40 কুইন্টাল সয়াবিন লৈ। মসি 2 অমসুং 5 নভেম্বরগী মরক্তা রেডি ওইগনি। কদাইদা যুথোক্কদগে?",
+    "ex2": "30 কুইন্টাল মগা, লাসালগাঁও খুঞ্জ, নাশিক। ঐনা স্টোরেজ লৈ। 5 নুমিৎ লেংগদগে নত্তে হৌজিক যুথোক্কদগে?",
+    "map_home": "য়ুম",
+    "map_village": "নখোয়গী খুঞ্জ",
+    "src_mandi_prices": "মণ্ডি মমল (data.gov.in)",
+    "src_weather": "মৌসম (Open-Meteo)",
+    "src_routing": "Road-er dhang-na (OSRM)",
+    "src_geocoding": "Thang-na khong-na (Nominatim)",
+    "src_database": "Data-na khong-na",
+    "src_llm": "Bhashar model",
+    "src_voice": "Awaiz (Sarvam)"
+  }
+}

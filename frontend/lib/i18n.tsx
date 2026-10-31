@@ -34,6 +34,7 @@ export const LANGS = [
   { code: "sa", native: "संस्कृतम्", english: "Sanskrit", voice: false },
 ] as const;
 export type Lang = (typeof LANGS)[number]["code"];
+const RTL = new Set<Lang>(["ur", "sd", "ks"]);
 
 export type Dict = typeof en;
 type AskKey = keyof Dict["ask"];
@@ -70,6 +71,7 @@ export function LangProvider({ children }: { children: React.ReactNode }) {
   }, []);
   useEffect(() => {
     document.documentElement.lang = lang;
+    document.documentElement.dir = RTL.has(lang) ? "rtl" : "ltr"; // Urdu, Sindhi, Kashmiri
     if (lang === "en") return setD(en);
     if (lang === "hi") return setD(merge(en, hi));
     let live = true;

@@ -1,10 +1,14 @@
 """Generate the site's page text for every language from frontend/locales/en.json.
 
 English and Hindi are written by hand. The other 21 languages are machine-translated once by
-the LLM and saved as files, so the site never translates at runtime. Each chunk is checked:
-same keys, same {placeholders}, every number kept. A chunk that fails twice stays English.
+the LLM and saved as files, so the site never translates at runtime. Every string is checked
+on its own: same {placeholders}, every number kept, no Hindi script leaking into another
+script. Strings that fail are retried; any that still fail stay English.
 
-    uv run python -m scripts.translate_ui            # every language: add keys missing from its file
+Strings missing from a language file, or still identical to English, are (re)translated, so
+running it again after editing en.json only costs the new strings.
+
+    uv run python -m scripts.translate_ui            # every language
     uv run python -m scripts.translate_ui ta bn      # only these languages
 """
 
@@ -12,6 +16,7 @@ import asyncio
 import json
 import re
 import sys
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -25,100 +30,104 @@ KEEP = (
     "Sarvam, OpenRouter, LangGraph, APMC, FORGE '26, ODbL, CC BY 4.0, API, URL, km, median, p95"
 )
 PLACEHOLDER = re.compile(r"\{\w+\}")
-DEVANAGARI = re.compile("[ऀ-ॣ०-ॿ]")  # not the danda "।", shared by other scripts
+DEVANAGARI = re.compile("[ऀ-ॣ०-ॿ]")  # not the danda, shared by other scripts
 DEVANAGARI_LANGS = {"hi", "mr", "mai", "ne", "kok", "doi", "brx", "sa"}
+reasons: Counter[str] = Counter()
 
 
-def strings(x: Any) -> list[str]:
+def flat(x: Any, path: str = "") -> dict[str, str]:
+    """{"home": {"steps": [{"t": "..."}]}} -> {"home.steps.0.t": "..."}"""
     if isinstance(x, dict):
-        return [s for v in x.values() for s in strings(v)]
+        return {k2: v for k, v in x.items() for k2, v in flat(v, f"{path}{k}.").items()}
     if isinstance(x, list):
-        return [s for v in x for s in strings(v)]
-    return [x]
+        return {k2: v for i, v in enumerate(x) for k2, v in flat(v, f"{path}{i}.").items()}
+    return {path[:-1]: x}
 
 
-def shape(x: Any) -> Any:
-    if isinstance(x, dict):
-        return {k: shape(v) for k, v in x.items()}
-    if isinstance(x, list):
-        return [shape(v) for v in x]
-    return "s"
+def rebuild(template: Any, values: dict[str, str], path: str = "") -> Any:
+    if isinstance(template, dict):
+        return {k: rebuild(v, values, f"{path}{k}.") for k, v in template.items()}
+    if isinstance(template, list):
+        return [rebuild(v, values, f"{path}{i}.") for i, v in enumerate(template)]
+    return values.get(path[:-1], template)
 
 
-def ok(src: Any, out: Any, lang: str) -> bool:
-    if shape(src) != shape(out):
-        return False
-    for a, b in zip(strings(src), strings(out), strict=True):
-        if not isinstance(b, str) or not b.strip():
-            return False
-        if sorted(PLACEHOLDER.findall(a)) != sorted(PLACEHOLDER.findall(b)):
-            return False
-        if not numbers_kept(PLACEHOLDER.sub("", a), PLACEHOLDER.sub("", b)):
-            return False
-        if lang not in DEVANAGARI_LANGS and DEVANAGARI.search(b):  # Hindi leaking into Tamil etc.
-            return False
-    return True
+def good(src: str, out: Any, lang: str) -> bool:
+    why = None
+    if not isinstance(out, str) or not out.strip():
+        why = "empty"
+    elif sorted(PLACEHOLDER.findall(src)) != sorted(PLACEHOLDER.findall(out)):
+        why = "placeholder"
+    elif not numbers_kept(PLACEHOLDER.sub("", src), PLACEHOLDER.sub("", out)):
+        why = "number"
+    elif lang not in DEVANAGARI_LANGS and DEVANAGARI.search(out):
+        why = "devanagari"
+    if why:
+        reasons[why] += 1
+    return why is None
 
 
-def chunks(section: dict[str, Any], size: int = 1800) -> list[dict[str, Any]]:
-    out: list[dict[str, Any]] = [{}]
-    for k, v in section.items():
-        if out[-1] and len(json.dumps(out[-1] | {k: v}, ensure_ascii=False)) > size:
+def batches(items: dict[str, str], size: int = 1500) -> list[dict[str, str]]:
+    out: list[dict[str, str]] = [{}]
+    for k, v in items.items():
+        if out[-1] and len(json.dumps(out[-1], ensure_ascii=False)) + len(v) > size:
             out.append({})
         out[-1][k] = v
     return out
 
 
-async def translate(part: dict[str, Any], lang: str, sem: asyncio.Semaphore) -> dict[str, Any]:
+async def translate(part: dict[str, str], lang: str, sem: asyncio.Semaphore) -> dict[str, str]:
+    """Returns the strings that passed the checks (a subset of part's keys)."""
     name = f"{LANGS[lang].english} ({LANGS[lang].native})"
     msgs: list[dict[str, Any]] = [
         {
             "role": "system",
-            "content": f"Translate the JSON values into simple, natural {name} for farmers, in "
-            "its usual script. Return only the JSON object, same keys and structure. Keep {words} "
-            f"in braces unchanged, keep every number as digits, and keep these in Latin: {KEEP}.",
+            "content": f"Translate each JSON value into simple, natural {name} for farmers, in its "
+            "usual script. Return only a JSON object with exactly the same keys. Keep {words} in "
+            "braces unchanged. Keep every number as digits (0-9). Keep these in Latin letters: "
+            f"{KEEP}.",
         },
         {"role": "user", "content": json.dumps(part, ensure_ascii=False)},
     ]
     async with sem:
-        for _ in range(2):
-            try:
-                text = str((await chat(msgs, max_tokens=8000)).get("content") or "")
-                text = text.strip().removeprefix("```json").removeprefix("```").removesuffix("```")
-                out = json.loads(text)
-                if ok(part, out, lang):
-                    return dict(out)
-            except Exception as e:
-                print(f"  {lang}: retry ({type(e).__name__})", flush=True)
-    print(f"  {lang}: kept English for {list(part)[:3]}", flush=True)
-    return part
+        try:
+            text = str((await chat(msgs, max_tokens=8000)).get("content") or "").strip()
+            text = text.removeprefix("```json").removeprefix("```").removesuffix("```")
+            out = json.loads(text)
+        except Exception as e:
+            reasons[f"call:{type(e).__name__}"] += 1
+            return {}
+    return {k: out[k] for k in part if k in out and good(part[k], out[k], lang)}
 
 
 async def one_language(lang: str, en: dict[str, Any], sem: asyncio.Semaphore) -> None:
-    """Translates only keys the language file doesn't have yet, so edits to en.json are cheap."""
     path = LOCALES / f"{lang}.json"
-    result: dict[str, Any] = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
-    for sec, body in en.items():
-        have = result.get(sec, {})
-        missing = {k: v for k, v in body.items() if k not in have}
-        if not missing:
-            continue
-        parts = await asyncio.gather(*(translate(c, lang, sem) for c in chunks(missing)))
-        result[sec] = have | {k: v for p in parts for k, v in p.items()}
-    (LOCALES / f"{lang}.json").write_text(
-        json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    have = flat(json.loads(path.read_text(encoding="utf-8"))) if path.exists() else {}
+    source = flat(en)
+    todo = {k: v for k, v in source.items() if have.get(k, v) == v}  # missing or still English
+    done: dict[str, str] = {}
+    for _ in range(3):  # first pass, then two retries of whatever failed
+        if not todo:
+            break
+        for got in await asyncio.gather(*(translate(b, lang, sem) for b in batches(todo))):
+            done |= got
+        todo = {k: v for k, v in todo.items() if k not in done}
+    values = {k: v for k, v in have.items() if k in source} | done
+    path.write_text(
+        json.dumps(rebuild(en, values), ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
-    print(f"{lang}: done", flush=True)
+    print(f"{lang}: {len(done)} new, {len(todo)} left in English", flush=True)
 
 
 async def main(only: list[str]) -> None:
     en = json.loads((LOCALES / "en.json").read_text(encoding="utf-8"))
-    todo = only or [c for c in LANGS if c not in ("en", "hi")]
-    sem = asyncio.Semaphore(8)
+    langs = only or [c for c in LANGS if c not in ("en", "hi")]
+    sem = asyncio.Semaphore(10)
     try:
-        await asyncio.gather(*(one_language(lang, en, sem) for lang in todo))
+        await asyncio.gather(*(one_language(lang, en, sem) for lang in langs))
     finally:
         await client.aclose()
+    print("rejected strings by reason:", dict(reasons), flush=True)
 
 
 if __name__ == "__main__":
