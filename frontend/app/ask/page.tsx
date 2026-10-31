@@ -12,7 +12,6 @@ import {
   type AskBody,
   type Clarify,
   type Final,
-  type MandiRow,
   type Params,
   type Place,
   type Result,
@@ -29,10 +28,10 @@ const MandiMap = dynamic(() => import("@/components/MandiMap"), { ssr: false });
 const DEFAULT_PARAMS: Params = { other_charges_per_q: 0 };
 
 const rupee = (n: number) => "₹" + Math.round(n).toLocaleString("en-IN");
-const fmtDay = (iso: string, locale: string) =>
-  new Date(iso + "T00:00:00").toLocaleDateString(locale, { weekday: "short", day: "numeric", month: "long" });
 const fmtTime = (iso: string | null | undefined, locale: string) =>
   iso ? new Date(iso).toLocaleString(locale, { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" }) : "—";
+const dateOf = (iso: string) => new Date(iso + "T00:00:00");
+const stepText = (e: TraceEvent, lang: string) => (lang === "hi" && e.hi ? e.hi : e.en);
 
 const EVENT_ICON: Record<string, string> = {
   understand: "👂",
@@ -54,12 +53,17 @@ const CONF_CLS = {
   low: "bg-red-100 text-red-800",
 };
 
+// One turn in the conversation. Agent turns keep their final payload and the steps that produced them.
+type Msg = { role: "user" | "agent"; text: string; final?: Final; trace?: TraceEvent[] };
+
 export default function AskPage() {
   const { lang, t } = useLang();
   const langInfo = LANGS.find((l) => l.code === lang)!;
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
-  const [trace, setTrace] = useState<TraceEvent[]>([]);
+  const [msgs, setMsgs] = useState<Msg[]>([]);
+  const [trace, setTrace] = useState<TraceEvent[]>([]); // live steps of the running question
+  const [shown, setShown] = useState<number | null>(null); // agent turn whose steps the side panel shows
   const [final, setFinal] = useState<Final | null>(null);
   const [pending, setPending] = useState<Clarify | null>(null); // question we're waiting on
   const [params, setParams] = useState<Params>(DEFAULT_PARAMS);
@@ -70,6 +74,7 @@ export default function AskPage() {
   const lastSpoken = useRef(false); // was the latest question asked with the mic?
   const recorder = useRef<MediaRecorder | null>(null);
   const lastText = useRef("");
+  const lastMsg = useRef<HTMLLIElement | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [server, setServer] = useState<"checking" | "waking" | "up" | "down">("checking");
   const [srcHealth, setSrcHealth] = useState<Health | null>(null);
@@ -88,15 +93,23 @@ export default function AskPage() {
     return () => clearTimeout(slow);
   }, []);
 
+  // Bring each new turn into view.
+  useEffect(() => {
+    lastMsg.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [msgs.length, busy]);
+
   function play(url: string) {
     new Audio(url).play().catch(() => {}); // autoplay blocked: the speaker button still works
   }
 
-  async function run(body: AskBody) {
+  async function run(body: AskBody, said: string) {
+    setMsgs((m) => [...m, { role: "user", text: said }]);
     setBusy(true);
     setError(null);
     setTrace([]);
+    setShown(null);
     setAudioUrl(null);
+    const steps: TraceEvent[] = [];
     try {
       await ask({ ...body, params: { ...params, ...body.params }, faults, speak: langInfo.voice && (readAloud || lastSpoken.current), lang }, (e) => {
         if (e.event === "audio") {
@@ -109,8 +122,11 @@ export default function AskPage() {
           setFinal(f);
           setPending(f.clarify);
           if (f.result) setParams((p) => ({ ...p, ...f.result!.costs })); // show what was used
+          const reply = f.answer ?? (f.clarify ? (f.clarify.text ?? f.clarify.en) : "");
+          if (reply) setMsgs((m) => [...m, { role: "agent", text: reply, final: f, trace: [...steps] }]);
         } else {
-          setTrace((t) => [...t, e as TraceEvent]);
+          steps.push(e as TraceEvent);
+          setTrace([...steps]);
           if (e.event === "error") setError(lang === "hi" ? (e as TraceEvent).hi || (e as TraceEvent).en : (e as TraceEvent).en);
         }
       });
@@ -122,8 +138,8 @@ export default function AskPage() {
     }
   }
 
-  function submit(t = text, spoken = false) {
-    const q = t.trim();
+  function submit(q0 = text, spoken = false) {
+    const q = q0.trim();
     if (!q || busy) return;
     lastSpoken.current = spoken; // taps on follow-up buttons keep the same mode
     const body: AskBody = { text: q };
@@ -141,22 +157,32 @@ export default function AskPage() {
       lastText.current = q;
     }
     setText("");
-    run(body);
+    run(body, q);
   }
 
   function confirmPlace(p: Place) {
-    run({ text: lastText.current, previous: pending?.intent, place: p });
+    run({ text: lastText.current, previous: pending?.intent, place: p }, `${t("yes")}, ${p.name}`);
   }
 
   function confirmQty() {
     const p = { ...params, qty_confirmed: true };
     setParams(p);
-    run({ text: lastText.current, previous: pending?.intent, place: pending?.place, params: p });
+    run({ text: lastText.current, previous: pending?.intent, place: pending?.place, params: p }, t("yes_qty"));
   }
 
   function recalc() {
     if (!final?.intent || !final.place) return;
-    run({ text: lastText.current, previous: final.intent, place: final.place });
+    run({ text: lastText.current, previous: final.intent, place: final.place }, t("recalc"));
+  }
+
+  function reset() {
+    setMsgs([]);
+    setTrace([]);
+    setFinal(null);
+    setPending(null);
+    setParams(DEFAULT_PARAMS);
+    setError(null);
+    setAudioUrl(null);
   }
 
   async function toggleMic() {
@@ -190,139 +216,207 @@ export default function AskPage() {
     }
   }
 
-  const r = final?.result;
+  // The latest answer with a result gets the full breakdown; older ones get a one-line summary.
+  const lastResultAt = msgs.findLastIndex((m) => m.final?.result?.best);
+  const lastAgentAt = msgs.findLastIndex((m) => m.role === "agent");
+  const panelSteps = busy ? trace : (msgs[shown ?? lastAgentAt]?.trace ?? trace);
 
   return (
-    <main className="mx-auto max-w-3xl px-4 pt-10">
-      <header>
-        <h1 className="font-display text-3xl leading-tight font-bold text-ink-900 sm:text-5xl">{t("ask_title")}</h1>
-        <p className="mt-1 text-lg text-ink-600">{t("ask_sub")}</p>
+    <main className="mx-auto grid max-w-6xl gap-6 px-4 pt-8 lg:grid-cols-[minmax(0,1fr)_20rem]">
+      <div className="min-w-0">
+        <header className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h1 className="font-display text-3xl leading-tight font-bold text-ink-900 sm:text-4xl">{t("ask_title")}</h1>
+            <p className="mt-1 text-ink-600">{t("ask_sub")}</p>
+          </div>
+          {msgs.length > 0 && (
+            <button onClick={reset} disabled={busy} className="btn-ghost px-4 py-2 text-sm disabled:opacity-50">
+              ＋ {t("new_chat")}
+            </button>
+          )}
+        </header>
         {server === "waking" && (
-          <p className="mt-2 rounded-lg bg-amber-50 p-2 text-sm text-amber-900" role="status">
+          <p className="mt-3 rounded-lg bg-amber-50 p-2 text-sm text-amber-900" role="status">
             {t("waking")}
           </p>
         )}
-        {server === "down" && (
-          <p className="mt-2 rounded-lg bg-red-50 p-2 text-sm text-red-800">{t("down")}</p>
-        )}
-      </header>
+        {server === "down" && <p className="mt-3 rounded-lg bg-red-50 p-2 text-sm text-red-800">{t("down")}</p>}
 
-      <section className="glass-strong mt-6 p-4 sm:p-6">
-        <div className="mb-4 sm:max-w-xs">
-          <LanguagePicker />
-        </div>
-        {!langInfo.voice && (
-          <p className="mb-3 rounded-xl bg-white/70 p-2 text-sm text-ink-600">{t("no_voice", { lang: langInfo.native })}</p>
+        {msgs.length === 0 && !busy && (
+          <section className="glass mt-6 p-6 sm:p-8">
+            <p className="text-lg text-ink-700">{t("welcome")}</p>
+            <p className="mt-5 text-sm font-semibold text-ink-500">{t("examples")}</p>
+            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+              {[t("ex1"), t("ex2")].map((ex) => (
+                <button
+                  key={ex}
+                  onClick={() => setText(ex)}
+                  className="rounded-2xl bg-white/80 p-4 text-left text-ink-800 shadow-sm ring-1 ring-white hover:bg-white"
+                >
+                  {ex}
+                </button>
+              ))}
+            </div>
+          </section>
         )}
-        {pending && (
-          <div className="mb-3 rounded-xl bg-amber-50 p-3 text-amber-950" role="status">
-            <p className="text-lg font-semibold">
-              {pending.text ?? pending.en}
-              {audioUrl && <ListenButton url={audioUrl} />}
-            </p>
-            {pending.needs === "confirm_qty" && (
-              <button
-                onClick={confirmQty}
-                disabled={busy}
-                className="mt-2 rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm hover:bg-amber-100"
-              >
-                {t("yes_qty")}
-              </button>
-            )}
-            {pending.options && (
-              <div className="mt-2 flex flex-wrap gap-2">
-                {pending.options.map((p) => (
-                  <button
-                    key={p.display_name}
-                    onClick={() => confirmPlace(p)}
-                    disabled={busy}
-                    className="rounded-lg border border-amber-300 bg-white px-3 py-2 text-left text-sm hover:bg-amber-100"
-                  >
-                    {t("yes")}, {p.name}
-                    <span className="block text-xs text-ink-500">{p.display_name}</span>
-                  </button>
-                ))}
+
+        <ol className="mt-6 space-y-5" aria-live="polite">
+          {msgs.map((m, i) => {
+            const ref = i === msgs.length - 1 && !busy ? lastMsg : undefined;
+            if (m.role === "user")
+              return (
+                <li key={i} ref={ref} className="flex scroll-mt-24 justify-end">
+                  <p className="max-w-[85%] rounded-3xl rounded-br-md bg-ink-900 px-5 py-3 text-lg text-white">{m.text}</p>
+                </li>
+              );
+            const r = m.final?.result;
+            const asking = i === lastAgentAt && pending && m.final?.clarify === pending ? pending : null;
+            return (
+              <li key={i} ref={ref} className="scroll-mt-24 space-y-4">
+                <div className="flex items-start gap-3">
+                  <Avatar />
+                  <div className={`min-w-0 flex-1 rounded-3xl rounded-tl-md p-5 ${asking ? "bg-amber-50 ring-1 ring-amber-200" : "glass-strong"}`}>
+                    <p className="text-lg leading-relaxed text-ink-900">
+                      {m.text}
+                      {i === lastAgentAt && audioUrl && <ListenButton url={audioUrl} />}
+                    </p>
+                    {asking?.needs === "confirm_qty" && (
+                      <button
+                        onClick={confirmQty}
+                        disabled={busy}
+                        className="mt-3 rounded-full bg-white px-4 py-2 text-sm font-semibold shadow-sm ring-1 ring-amber-300 hover:bg-amber-100"
+                      >
+                        {t("yes_qty")}
+                      </button>
+                    )}
+                    {asking?.options && (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {asking.options.map((p) => (
+                          <button
+                            key={p.display_name}
+                            onClick={() => confirmPlace(p)}
+                            disabled={busy}
+                            className="rounded-2xl bg-white px-4 py-2 text-left text-sm shadow-sm ring-1 ring-amber-300 hover:bg-amber-100"
+                          >
+                            <b>
+                              {t("yes")}, {p.name}
+                            </b>
+                            <span className="block text-xs text-ink-500">{p.display_name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      {r?.confidence && (
+                        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${CONF_CLS[r.confidence]}`} title={r.confidence_reasons?.join("; ")}>
+                          {t(`conf_${r.confidence}`)}
+                        </span>
+                      )}
+                      {m.trace && m.trace.length > 0 && (
+                        <a
+                          href="#activity"
+                          onClick={() => setShown(i)}
+                          className="rounded-full bg-white/80 px-3 py-1 text-xs font-semibold text-leaf-800 ring-1 ring-ink-100 hover:bg-white"
+                        >
+                          🔍 {t("steps_n", { n: m.trace.length })}
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                {r?.best && m.final?.place && i === lastResultAt && (
+                  <ResultView r={r} place={m.final.place} params={params} setParams={setParams} recalc={recalc} busy={busy} />
+                )}
+                {r?.best && i !== lastResultAt && (
+                  <p className="ml-12 rounded-2xl bg-white/60 px-4 py-2 text-sm text-ink-700">
+                    {t("best")}: <b>{r.best.market}</b> · {rupee(r.best.net_per_quintal)}/q
+                  </p>
+                )}
+              </li>
+            );
+          })}
+          {busy && (
+            <li ref={lastMsg} className="flex scroll-mt-24 items-start gap-3">
+              <Avatar />
+              <div className="glass rounded-3xl rounded-tl-md px-5 py-4">
+                <p className="flex items-center gap-2 font-semibold text-ink-800">
+                  <span className="flex gap-1" aria-hidden>
+                    {[0, 1, 2].map((k) => (
+                      <span key={k} className="h-2 w-2 animate-bounce rounded-full bg-leaf-600" style={{ animationDelay: `${k * 0.15}s` }} />
+                    ))}
+                  </span>
+                  {t("thinking")}
+                </p>
+                {trace.length > 0 && (
+                  <p className="mt-1 text-sm text-ink-600">
+                    {EVENT_ICON[trace[trace.length - 1].event] ?? "•"} {stepText(trace[trace.length - 1], lang)}
+                  </p>
+                )}
               </div>
+            </li>
+          )}
+        </ol>
+
+        {/* The composer stays at the bottom of the screen while scrolling through answers. */}
+        <section className="glass-strong sticky bottom-3 z-[500] mt-6 p-3 sm:p-4">
+          {error && <p className="mb-2 rounded-lg bg-red-50 p-2 text-sm text-red-800">{error}</p>}
+          <label htmlFor="q" className="sr-only">
+            {pending ? t("answer_label") : t("ask_label")}
+          </label>
+          <div className="flex items-end gap-2">
+            <textarea
+              id="q"
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), submit())}
+              rows={2}
+              placeholder={pending ? t("answer_label") : t("placeholder")}
+              className="min-w-0 flex-1 resize-none rounded-2xl border border-white bg-white/90 p-3 text-lg shadow-inner focus:border-leaf-600 focus:outline-none"
+            />
+            <button
+              onClick={toggleMic}
+              disabled={busy && !recording}
+              aria-pressed={recording}
+              aria-label={recording ? t("stop") : t("speak")}
+              className={`grid h-12 w-12 shrink-0 place-items-center rounded-full text-xl text-white ${
+                recording ? "animate-pulse bg-red-600" : "bg-ink-800 hover:bg-ink-700"
+              } disabled:opacity-50`}
+            >
+              {recording ? "⏹" : "🎤"}
+            </button>
+            <button onClick={() => submit()} disabled={busy || !text.trim()} className="btn-primary h-12 shrink-0 px-5 disabled:opacity-50">
+              {busy ? "…" : t("ask")}
+            </button>
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-ink-600">
+            <div className="w-44">
+              <LanguagePicker compact />
+            </div>
+            {langInfo.voice ? (
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={readAloud} onChange={(e) => setReadAloud(e.target.checked)} />
+                {t("read_aloud")}
+              </label>
+            ) : (
+              <span className="text-xs">{t("no_voice", { lang: langInfo.native })}</span>
             )}
           </div>
-        )}
-        <label htmlFor="q" className="text-sm font-medium text-ink-600">
-          {pending ? t("answer_label") : t("ask_label")}
-        </label>
-        <textarea
-          id="q"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), submit())}
-          rows={3}
-          placeholder={t("placeholder")}
-          className="mt-1 w-full resize-none rounded-2xl border border-white bg-white/80 p-3 text-lg shadow-inner focus:border-leaf-600 focus:outline-none"
-        />
-        <div className="mt-2 flex gap-2">
-          <button
-            onClick={toggleMic}
-            disabled={busy && !recording}
-            aria-pressed={recording}
-            className={`flex-1 rounded-full px-4 py-3 text-lg font-semibold text-white ${
-              recording ? "animate-pulse bg-red-600" : "bg-ink-800 hover:bg-ink-700"
-            } disabled:opacity-50`}
-          >
-            {recording ? t("stop") : t("speak")}
-          </button>
-          <button
-            onClick={() => submit()}
-            disabled={busy || !text.trim()}
-            className="btn-primary flex-1 text-lg disabled:opacity-50"
-          >
-            {busy ? t("thinking") : t("ask")}
-          </button>
-        </div>
-        {langInfo.voice && (
-          <label className="mt-2 flex items-center gap-2 text-sm text-ink-600">
-            <input type="checkbox" checked={readAloud} onChange={(e) => setReadAloud(e.target.checked)} />
-            {t("read_aloud")}
-          </label>
-        )}
-        {!final && !busy && (
-          <div className="mt-3 space-y-1">
-            <p className="text-xs text-ink-500">{t("examples")}</p>
-            {[t("ex1"), t("ex2")].map((ex) => (
-              <button key={ex} onClick={() => setText(ex)} className="block text-left text-sm text-leaf-800 underline-offset-2 hover:underline">
-                {ex}
-              </button>
-            ))}
-          </div>
-        )}
-        {error && <p className="mt-3 rounded-lg bg-red-50 p-2 text-red-800">{error}</p>}
-      </section>
-
-      {trace.length > 0 && <Trace events={trace} busy={busy} />}
-
-      {final?.answer && r && (
-        <section className="glass-strong mt-6 p-5 ring-2 ring-leaf-600/40" aria-live="polite">
-          <p className="text-xl leading-relaxed text-ink-900">
-            {final.answer}
-            {audioUrl && <ListenButton url={audioUrl} />}
-          </p>
-          {r.confidence && (
-            <p className="mt-3">
-              <span className={`rounded-full px-3 py-1 text-sm font-semibold ${CONF_CLS[r.confidence]}`}>
-                {t(`conf_${r.confidence}`)}
-              </span>
-              {r.confidence_reasons?.length ? (
-                <span className="ml-2 text-sm text-ink-600">({r.confidence_reasons.join("; ")})</span>
-              ) : null}
-            </p>
-          )}
         </section>
-      )}
+      </div>
 
-      {r?.best && final?.place && (
-        <ResultCard r={r} place={final.place} params={params} setParams={setParams} recalc={recalc} busy={busy} />
-      )}
-
-      {srcHealth && <Footer h={srcHealth} faults={faults} setFaults={setFaults} />}
+      <aside className="space-y-3 lg:sticky lg:top-24 lg:max-h-[calc(100dvh-7rem)] lg:self-start lg:overflow-y-auto">
+        <Activity events={panelSteps} busy={busy} />
+        {srcHealth && <Status h={srcHealth} faults={faults} setFaults={setFaults} />}
+      </aside>
     </main>
+  );
+}
+
+function Avatar() {
+  return (
+    <span aria-hidden className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-marigold-300 to-leaf-600 text-lg">
+      🧭
+    </span>
   );
 }
 
@@ -339,15 +433,55 @@ function ListenButton({ url }: { url: string }) {
   );
 }
 
-function Footer({ h, faults, setFaults }: { h: Health; faults: string[]; setFaults: (f: string[]) => void }) {
+function Activity({ events, busy }: { events: TraceEvent[]; busy: boolean }) {
+  const { lang, t, locale } = useLang();
+  return (
+    <section id="activity" className="glass scroll-mt-24 p-4">
+      <h2 className="flex items-center gap-2 font-semibold text-ink-800">
+        {t("trace")}
+        {busy && <span className="inline-block h-2 w-2 animate-ping rounded-full bg-leaf-600" />}
+      </h2>
+      {events.length === 0 ? (
+        <p className="mt-2 text-sm text-ink-500">{t("activity_idle")}</p>
+      ) : (
+        <ol className="relative mt-3 space-y-2 text-sm before:absolute before:top-2 before:bottom-2 before:left-[0.85rem] before:w-px before:bg-ink-200">
+          {events.map((e, i) => (
+            <li key={i} className="relative flex gap-2">
+              <span
+                aria-hidden
+                className={`z-10 grid h-7 w-7 shrink-0 place-items-center rounded-full text-sm ring-2 ring-white ${
+                  e.event === "repair" ? "bg-amber-100" : e.event === "audit_reject" || e.event === "error" ? "bg-red-100" : "bg-white"
+                }`}
+              >
+                {EVENT_ICON[e.event] ?? "•"}
+              </span>
+              <span className="min-w-0 pt-1">
+                <span className="block break-words text-ink-800">{stepText(e, lang)}</span>
+                {e.status && (
+                  <span className="text-xs text-ink-500">
+                    {status(t, e.status)}
+                    {e.ms != null && ` · ${(e.ms / 1000).toFixed(1)} s`}
+                    {e.fetched_at && ` · ${fmtTime(e.fetched_at, locale)}`}
+                  </span>
+                )}
+              </span>
+            </li>
+          ))}
+        </ol>
+      )}
+    </section>
+  );
+}
+
+function Status({ h, faults, setFaults }: { h: Health; faults: string[]; setFaults: (f: string[]) => void }) {
   const { t, d } = useLang();
   const [use, setUse] = useState<Stats | null>(null);
   useEffect(() => {
     stats().then(setUse).catch(() => setUse(null));
   }, []);
   return (
-    <section className="mt-8 space-y-3 text-sm text-ink-600" aria-label={t("health")}>
-      <details className="glass p-4 sm:p-5">
+    <>
+      <details className="glass p-4 text-sm text-ink-600">
         <summary className="cursor-pointer font-semibold text-ink-800">
           {t("health")} {h.status === "ok" ? "✅" : "⚠️"}
         </summary>
@@ -375,13 +509,11 @@ function Footer({ h, faults, setFaults }: { h: Health; faults: string[]; setFaul
           </p>
         )}
       </details>
-      <details className="glass p-4 sm:p-5">
+      <details className="glass p-4 text-sm text-ink-600">
         <summary className="cursor-pointer font-semibold text-ink-800">
           {t("switches")} {faults.length > 0 && t("switches_on", { n: faults.length })}
         </summary>
-        <p className="mt-1 text-xs text-ink-500">
-          {t("switches_note")}
-        </p>
+        <p className="mt-1 text-xs text-ink-500">{t("switches_note")}</p>
         {Object.entries(h.test_switches).map(([k, label]) => (
           <label key={k} className="mt-1 flex items-center gap-2">
             <input
@@ -393,46 +525,11 @@ function Footer({ h, faults, setFaults }: { h: Health; faults: string[]; setFaul
           </label>
         ))}
       </details>
-    </section>
+    </>
   );
 }
 
-function Trace({ events, busy }: { events: TraceEvent[]; busy: boolean }) {
-  const { lang, t, locale } = useLang();
-  return (
-    <section className="mt-6 glass p-4 sm:p-5">
-      <h2 className="font-semibold text-ink-800">
-        {t("trace")}
-        {busy && <span className="ml-2 inline-block h-2 w-2 animate-ping rounded-full bg-leaf-600" />}
-      </h2>
-      <ol className="mt-2 max-h-80 space-y-1 overflow-y-auto text-sm">
-        {events.map((e, i) => (
-          <li
-            key={i}
-            className={`flex gap-2 rounded-lg px-2 py-1 ${
-              e.event === "repair" ? "bg-amber-50" : e.event === "audit_reject" ? "bg-red-50" : ""
-            }`}
-          >
-            <span aria-hidden>{EVENT_ICON[e.event] ?? "•"}</span>
-            <span className="min-w-0">
-              {lang === "hi" && e.hi && e.hi !== e.en && <span className="block text-ink-800">{e.hi}</span>}
-              <span className="block break-words text-ink-500">{e.en}</span>
-              {e.status && (
-                <span className="text-xs text-ink-500">
-                  {status(t, e.status)}
-                  {e.ms != null && ` · ${(e.ms / 1000).toFixed(1)} s`}
-                  {e.fetched_at && ` · ${fmtTime(e.fetched_at, locale)}`}
-                </span>
-              )}
-            </span>
-          </li>
-        ))}
-      </ol>
-    </section>
-  );
-}
-
-function ResultCard({
+function ResultView({
   r,
   place,
   params,
@@ -449,67 +546,98 @@ function ResultCard({
 }) {
   const { lang, t, locale } = useLang();
   const b = r.best!;
-  const day = (iso: string) => fmtDay(iso, locale);
-  const distance = (m: MandiRow) => (m.road_km < 1 ? t("same_town") : t("by_road", { km: m.road_km }));
+  const day = (iso: string) => dateOf(iso).toLocaleDateString(locale, { weekday: "short", day: "numeric", month: "long" });
+  const gross = b.price_used * r.quantity_q;
+  const nets = r.ranking.map((m) => m.net_per_quintal);
+  const top = Math.max(...nets);
+  const low = Math.min(...nets);
+  const floor = low - (top - low || top * 0.05); // bars start below the lowest, so the last one isn't empty
+
   return (
-    <>
-      <section className="mt-6 glass p-4 sm:p-5">
-        <p className="text-sm text-ink-500">{t("best")}</p>
-        <h2 className="text-2xl font-bold text-leaf-800">{b.market}</h2>
-        <p className="text-ink-600">
-          {b.district} · {distance(b)}
+    <div className="space-y-4 lg:ml-12">
+      {/* 1. The decision */}
+      <section className="rounded-[2rem] bg-gradient-to-br from-leaf-700 to-leaf-900 p-6 text-white shadow-xl sm:p-8">
+        <p className="text-sm font-semibold tracking-wide text-leaf-100 uppercase">{t("best")}</p>
+        <h2 className="mt-1 font-display text-4xl font-extrabold sm:text-5xl">{b.market}</h2>
+        <p className="mt-1 text-leaf-100">
+          📍 {b.district} · {b.road_km < 1 ? t("same_town") : t("by_road", { km: b.road_km })}
           {b.road_km >= 1 && ` · ${t("about_min", { min: Math.round(b.drive_min) })}`}
         </p>
-        <dl className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-          <Stat label={t("net_q")} value={rupee(b.net_per_quintal)} strong />
-          <Stat label={t("net_total", { q: r.quantity_q })} value={rupee(b.net_total)} />
-          <Stat
-            label={t("bad_day")}
-            value={b.conservative_net_per_quintal == null ? t("little_history") : rupee(b.conservative_net_per_quintal)}
-          />
+        <dl className="mt-6 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-2xl bg-white/15 p-4">
+            <dt className="text-sm text-leaf-100">{t("net_q")}</dt>
+            <dd className="font-display text-4xl font-extrabold text-marigold-300">{rupee(b.net_per_quintal)}</dd>
+          </div>
+          <div className="rounded-2xl bg-white/10 p-4">
+            <dt className="text-sm text-leaf-100">{t("net_total", { q: r.quantity_q })}</dt>
+            <dd className="font-display text-3xl font-bold">{rupee(b.net_total)}</dd>
+          </div>
+          <div className="rounded-2xl bg-white/10 p-4">
+            <dt className="text-sm text-leaf-100">{t("bad_day")}</dt>
+            <dd className="font-display text-3xl font-bold">
+              {b.conservative_net_per_quintal == null ? (
+                <span className="text-base font-normal">{t("little_history")}</span>
+              ) : (
+                rupee(b.conservative_net_per_quintal)
+              )}
+            </dd>
+          </div>
         </dl>
-        <p className="mt-2 text-xs text-ink-500">
-          {t("price_used", { p: rupee(b.price_used) })}{" "}
-          {b.price_days > 1 ? t("median_of", { n: b.price_days }) : t("latest")} ·{" "}
-          {t("modal_today", { p: rupee(b.modal_price) })} ({b.variety}) · {t("price_date", { d: day(b.arrival_date) })}
+        {(r.nearer_pick || (r.runner_up && r.runner_up_gap)) && (
+          <div className="mt-5 rounded-2xl bg-white/10 p-4 text-sm leading-relaxed">
+            <p className="font-semibold">💡 {t("why")}</p>
+            {r.nearer_pick && (
+              <p className="mt-1 text-leaf-50">
+                {t("nearer", { m: r.nearer_pick.skipped, p: rupee(r.nearer_pick.extra_per_quintal), km: r.nearer_pick.extra_km })}
+              </p>
+            )}
+            {r.runner_up && r.runner_up_gap && (
+              <p className="mt-1 text-leaf-50">
+                {t("runner_up")} <b>{r.runner_up.market}</b>:{" "}
+                {r.runner_up_gap.price > 0
+                  ? t("ru_lower", { p: rupee(r.runner_up_gap.price) })
+                  : t("ru_higher", { p: rupee(-r.runner_up_gap.price), t: rupee(r.runner_up_gap.transport_per_quintal) })}{" "}
+                {t("ru_total", { p: rupee(r.runner_up_gap.net_per_quintal) })}
+              </p>
+            )}
+          </div>
+        )}
+        <p className="mt-4 text-xs text-leaf-100">
+          {t("price_used", { p: rupee(b.price_used) })} {b.price_days > 1 ? t("median_of", { n: b.price_days }) : t("latest")} · {b.variety} ·{" "}
+          {t("price_date", { d: day(b.arrival_date) })}
           {b.age_days > 0 && ` ${t("days_old", { n: b.age_days })}`}
         </p>
-        {r.nearer_pick && (
-          <p className="mt-3 text-sm text-ink-700">
-            {t("nearer", {
-              m: r.nearer_pick.skipped,
-              p: rupee(r.nearer_pick.extra_per_quintal),
-              km: r.nearer_pick.extra_km,
-            })}
-          </p>
-        )}
-        {r.runner_up && r.runner_up_gap && (
-          <p className="mt-3 text-sm text-ink-700">
-            {t("runner_up")} <b>{r.runner_up.market}</b>:{" "}
-            {r.runner_up_gap.price > 0
-              ? t("ru_lower", { p: rupee(r.runner_up_gap.price) })
-              : t("ru_higher", { p: rupee(-r.runner_up_gap.price), t: rupee(r.runner_up_gap.transport_per_quintal) })}{" "}
-            {t("ru_total", { p: rupee(r.runner_up_gap.net_per_quintal) })}
-          </p>
-        )}
       </section>
 
+      {/* 2. Weather and waiting */}
       {(r.harvest_days?.length || r.wait) && (
-        <section className="mt-4 glass p-4 sm:p-5">
+        <section className="glass p-5 sm:p-6">
           {r.harvest_days && r.harvest_days.length > 0 && (
             <>
-              <h3 className="font-semibold text-ink-800">{t("safe_days")}</h3>
-              <ul className="mt-2 flex flex-wrap gap-2">
-                {r.harvest_days.map((d) => (
-                  <li
-                    key={d.day}
-                    className={`rounded-lg px-3 py-2 text-sm ${d.both_dry && !d.uncertain ? "bg-leaf-100 text-leaf-900" : "bg-amber-50 text-amber-900"}`}
-                    title={d.reasons.join("; ")}
-                  >
-                    {day(d.day)} {d.both_dry ? t("dry") : t("rain")}
-                    {d.uncertain && t("uncertain")}
-                  </li>
-                ))}
+              <h3 className="font-display text-2xl font-bold">🌾 {t("weather")}</h3>
+              <p className="text-sm text-ink-600">{t("safe_days")}</p>
+              <ul className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-7">
+                {r.harvest_days.map((d) => {
+                  const ok = d.both_dry && !d.uncertain;
+                  const dt = dateOf(d.day);
+                  return (
+                    <li
+                      key={d.day}
+                      title={d.reasons.join("; ")}
+                      className={`rounded-2xl p-3 text-center ring-1 ${ok ? "bg-leaf-50 ring-leaf-100" : "bg-amber-50 ring-amber-100"}`}
+                    >
+                      <p className="text-xs font-semibold text-ink-600 uppercase">{dt.toLocaleDateString(locale, { weekday: "short" })}</p>
+                      <p className="font-display text-2xl font-bold">{dt.toLocaleDateString(locale, { day: "numeric" })}</p>
+                      <p className="text-2xl" aria-hidden>
+                        {d.both_dry ? "☀️" : "🌧️"}
+                      </p>
+                      <p className={`mt-1 text-xs font-semibold ${ok ? "text-leaf-800" : "text-amber-900"}`}>
+                        {(d.both_dry ? t("dry") : t("rain")).replace(/^\S+\s/, "")}
+                        {d.uncertain && t("uncertain")}
+                      </p>
+                    </li>
+                  );
+                })}
               </ul>
               {r.beyond_forecast && r.beyond_forecast.length > 0 && (
                 <p className="mt-2 text-xs text-ink-500">
@@ -519,160 +647,174 @@ function ResultCard({
             </>
           )}
           {r.wait && (
-            <p className="mt-3 text-sm text-ink-700">
-              <b>{t("wait_q", { n: r.wait.days })}</b>{" "}
-              {r.wait.trend_change_per_quintal == null
-                ? t("no_trend")
-                : t("trend", {
-                    p: `${r.wait.trend_change_per_quintal >= 0 ? "+" : ""}${rupee(r.wait.trend_change_per_quintal)}`,
-                  })}
-              {r.wait.max_rain_risk != null && ` · ${t("rain_risk", { p: Math.round(r.wait.max_rain_risk * 100) })}`}
-              <span className="block text-xs text-ink-500">{t("trend_note")}</span>
-            </p>
+            <div className="mt-4 rounded-2xl bg-white/70 p-4">
+              <p className="font-semibold text-ink-900">⏳ {t("wait_q", { n: r.wait.days })}</p>
+              <p className="mt-1 text-ink-700">
+                {r.wait.trend_change_per_quintal == null
+                  ? t("no_trend")
+                  : t("trend", { p: `${r.wait.trend_change_per_quintal >= 0 ? "+" : ""}${rupee(r.wait.trend_change_per_quintal)}` })}
+                {r.wait.max_rain_risk != null && ` · ${t("rain_risk", { p: Math.round(r.wait.max_rain_risk * 100) })}`}
+              </p>
+              <p className="mt-1 text-xs text-ink-500">{t("trend_note")}</p>
+            </div>
           )}
         </section>
       )}
 
-      <section className="mt-4 glass p-4 sm:p-5">
-        <h3 className="mb-2 font-semibold text-ink-800">{t("map")}</h3>
-        <MandiMap
-          origin={place}
-          mandis={r.ranking.slice(0, 5)}
-          labels={{ home: t("map_home"), village: t("map_village"), map: t("map") }}
-        />
-      </section>
-
-      <section className="mt-4 glass p-4 sm:p-5">
-        <h3 className="font-semibold text-ink-800">{t("compare")}</h3>
-        <div className="mt-2 overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="text-left text-xs text-ink-500">
-              <tr>
-                <th className="py-1 pr-2">#</th>
-                <th className="pr-2">{t("col_mandi")}</th>
-                <th className="pr-2 text-right">{t("col_price")}</th>
-                <th className="pr-2 text-right">{t("col_dist")}</th>
-                <th className="pr-2 text-right">{t("col_transport")}</th>
-                <th className="text-right">{t("col_net")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {r.ranking.map((m, i) => (
-                <tr key={m.market + m.district} className="border-t border-ink-100">
-                  <td className="py-1 pr-2">{i + 1}</td>
-                  <td className="pr-2">
-                    {m.market}
-                    {m.age_days > 0 && <span className="text-xs text-ink-500"> ({m.age_days}d)</span>}
-                  </td>
-                  <td className="pr-2 text-right">{rupee(m.price_used)}</td>
-                  <td className="pr-2 text-right">{m.road_km < 1 ? t("same_town_short") : `${Math.round(m.road_km)} km`}</td>
-                  <td className="pr-2 text-right">{rupee(m.transport_total)}</td>
-                  <td className="text-right font-semibold">{rupee(m.net_per_quintal)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <section className="mt-4 glass p-4 sm:p-5">
-        <h3 className="font-semibold text-ink-800">{t("costs", { m: b.market })}</h3>
-        <ul className="mt-2 space-y-1 text-sm text-ink-700">
-          <li>
-            {t("c_price", { p: rupee(b.price_used), q: r.quantity_q, t: rupee(b.price_used * r.quantity_q) })}
-          </li>
-          <li>
-            {t("c_transport", {
-              trips: b.trips,
-              km: b.road_km,
-              r: rupee(r.costs.rate_per_km),
-              t: rupee(b.transport_total),
-            })}
-          </li>
-          <li>
-            {t("c_hammali", {
-              v:
-                r.costs.other_charges_per_q > 0
-                  ? `${rupee(r.costs.other_charges_per_q)}/q = −${rupee(b.mandi_charges)}`
-                  : t("c_hammali_none"),
-            })}
-          </li>
-          <li className="text-xs text-ink-500">
-            {r.region === "Madhya Pradesh" ? t("c_fee") : t("c_fee_other")}
-          </li>
-          <li className="font-semibold">{t("c_net", { t: rupee(b.net_total) })}</li>
-        </ul>
-        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
-          <NumField label={t("f_rate")} value={params.rate_per_km} onChange={(v) => setParams({ ...params, rate_per_km: v })} />
-          <NumField label={t("f_cap")} value={params.capacity_q} onChange={(v) => setParams({ ...params, capacity_q: v })} />
-          <NumField
-            label={t("f_hammali")}
-            value={params.other_charges_per_q}
-            min={0}
-            onChange={(v) => setParams({ ...params, other_charges_per_q: v })}
+      {/* 3. Where the money goes */}
+      <section className="glass p-5 sm:p-6">
+        <h3 className="font-display text-2xl font-bold">💰 {t("money")}</h3>
+        <p className="text-sm text-ink-600">{b.market}</p>
+        <ul className="mt-4 space-y-3">
+          <MoneyRow label={t("m_gross", { q: r.quantity_q, p: rupee(b.price_used) })} value={rupee(gross)} width={1} cls="bg-ink-200" />
+          <MoneyRow
+            label={t("m_transport")}
+            sub={`${b.trips} × 2 × ${b.road_km} km × ${rupee(r.costs.rate_per_km)}/km`}
+            value={`−${rupee(b.transport_total)}`}
+            width={gross ? b.transport_total / gross : 0}
+            cls="bg-red-300"
           />
-        </div>
-        <button
-          onClick={recalc}
-          disabled={busy}
-          className="mt-3 rounded-xl bg-ink-800 px-4 py-2 font-semibold text-white hover:bg-ink-700 disabled:opacity-50"
-        >
-          {t("recalc")}
-        </button>
+          <MoneyRow
+            label={t("m_charges")}
+            sub={r.costs.other_charges_per_q > 0 ? `${rupee(r.costs.other_charges_per_q)}/q` : t("c_hammali_none")}
+            value={`−${rupee(b.mandi_charges)}`}
+            width={gross ? b.mandi_charges / gross : 0}
+            cls="bg-amber-300"
+          />
+          <MoneyRow label={t("m_net")} value={rupee(b.net_total)} width={gross ? b.net_total / gross : 0} cls="bg-leaf-600" strong />
+        </ul>
+        <p className="mt-3 text-xs text-ink-500">{r.region === "Madhya Pradesh" ? t("c_fee") : t("c_fee_other")}</p>
+
+        <details className="mt-4 rounded-2xl bg-white/60 p-4">
+          <summary className="cursor-pointer font-semibold text-ink-800">✏️ {t("edit")}</summary>
+          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <NumField label={t("f_rate")} value={params.rate_per_km} onChange={(v) => setParams({ ...params, rate_per_km: v })} />
+            <NumField label={t("f_cap")} value={params.capacity_q} onChange={(v) => setParams({ ...params, capacity_q: v })} />
+            <NumField
+              label={t("f_hammali")}
+              value={params.other_charges_per_q}
+              min={0}
+              onChange={(v) => setParams({ ...params, other_charges_per_q: v })}
+            />
+          </div>
+          <button
+            onClick={recalc}
+            disabled={busy}
+            className="mt-3 rounded-full bg-ink-800 px-5 py-2 font-semibold text-white hover:bg-ink-700 disabled:opacity-50"
+          >
+            {t("recalc")}
+          </button>
+        </details>
         {r.notes.length > 0 && <p className="mt-2 text-xs text-ink-500">{r.notes.join(" · ")}</p>}
       </section>
 
-      {r.excluded.length > 0 && (
-        <details className="mt-4 glass p-4 sm:p-5">
-          <summary className="cursor-pointer font-semibold text-ink-800">
-            {t("excluded", { n: r.excluded.length })}
-          </summary>
-          <ul className="mt-2 space-y-1 text-sm">
-            {r.excluded.map((x) => (
-              <li key={x.market + x.district}>
-                <b>{x.market}</b> ({x.district}): {(lang === "hi" && x.reasons_hi.length ? x.reasons_hi : x.reasons).join("; ")}
-              </li>
-            ))}
-          </ul>
-        </details>
-      )}
+      {/* 4. Every mandi, ranked */}
+      <section className="glass p-5 sm:p-6">
+        <h3 className="font-display text-2xl font-bold">📊 {t("compare")}</h3>
+        <ol className="mt-4 space-y-3">
+          {r.ranking.map((m, i) => (
+            <li key={m.market + m.district}>
+              <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+                <p className="font-semibold text-ink-900">
+                  {i + 1}. {m.market}
+                  {i === 0 && <span className="ml-2 rounded-full bg-leaf-600 px-2 py-0.5 text-xs text-white">{t("best_tag")}</span>}
+                </p>
+                <p className="font-display text-lg font-bold">
+                  {rupee(m.net_per_quintal)}
+                  <span className="text-xs font-normal text-ink-500">/q</span>
+                </p>
+              </div>
+              <div className="mt-1 h-2.5 overflow-hidden rounded-full bg-ink-100">
+                <div
+                  className={`h-full rounded-full ${i === 0 ? "bg-leaf-600" : "bg-marigold-400"}`}
+                  style={{ width: `${Math.max(6, ((m.net_per_quintal - floor) / (top - floor)) * 100)}%` }}
+                />
+              </div>
+              <p className="mt-1 text-xs text-ink-500">
+                {t("col_price")} {rupee(m.price_used)} · {m.road_km < 1 ? t("same_town_short") : `${Math.round(m.road_km)} km`} ·{" "}
+                {t("col_transport")} {rupee(m.transport_total)}
+                {m.age_days > 0 && ` · ${t("days_old", { n: m.age_days })}`}
+                {i > 0 && ` · ${t("vs_best", { p: rupee(top - m.net_per_quintal) })}`}
+              </p>
+            </li>
+          ))}
+        </ol>
+      </section>
 
-      {r.sources && (
-        <section className="mt-4 glass p-4 sm:p-5 text-sm text-ink-700">
-          <h3 className="font-semibold text-ink-800">{t("sources")}</h3>
-          <ul className="mt-2 space-y-1">
-            {r.sources.prices_today && (
+      <section className="glass p-3 sm:p-4">
+        <h3 className="mb-2 px-1 font-semibold text-ink-800">🗺️ {t("map")}</h3>
+        <MandiMap origin={place} mandis={r.ranking.slice(0, 5)} labels={{ home: t("map_home"), village: t("map_village"), map: t("map") }} />
+      </section>
+
+      {/* 5. The fine print */}
+      <details className="glass p-5">
+        <summary className="cursor-pointer font-semibold text-ink-800">{t("more")}</summary>
+        {r.excluded.length > 0 && (
+          <>
+            <h4 className="mt-4 font-semibold text-ink-800">🚫 {t("excluded", { n: r.excluded.length })}</h4>
+            <ul className="mt-2 space-y-1 text-sm text-ink-700">
+              {r.excluded.map((x) => (
+                <li key={x.market + x.district} className="rounded-xl bg-red-50/70 px-3 py-2">
+                  <b>{x.market}</b> ({x.district}): {(lang === "hi" && x.reasons_hi.length ? x.reasons_hi : x.reasons).join("; ")}
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+        {r.sources && (
+          <>
+            <h4 className="mt-4 font-semibold text-ink-800">{t("sources")}</h4>
+            <ul className="mt-2 space-y-1 text-sm text-ink-700">
+              {r.sources.prices_today && (
+                <li>
+                  {t("s_today")}:{" "}
+                  <a className="underline" href={r.sources.prices_today.url} target="_blank" rel="noreferrer">
+                    data.gov.in
+                  </a>{" "}
+                  · {status(t, r.sources.prices_today.status)} · {fmtTime(r.sources.prices_today.fetched_at, locale)}
+                </li>
+              )}
               <li>
-                {t("s_today")}: <a className="underline" href={r.sources.prices_today.url} target="_blank" rel="noreferrer">data.gov.in</a>{" "}
-                · {status(t, r.sources.prices_today.status)} · {fmtTime(r.sources.prices_today.fetched_at, locale)}
+                {t("s_history")}: {r.sources.history}
               </li>
-            )}
-            <li>
-              {t("s_history")}: {r.sources.history}
-            </li>
-            {r.sources.weather && (
+              {r.sources.weather && (
+                <li>
+                  {t("s_weather")}:{" "}
+                  <a className="underline" href="https://open-meteo.com/" target="_blank" rel="noreferrer">
+                    Weather data by Open-Meteo.com
+                  </a>{" "}
+                  (
+                  <a className="underline" href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noreferrer">
+                    CC BY 4.0
+                  </a>
+                  ) · {status(t, r.sources.weather.status)} · {fmtTime(r.sources.weather.fetched_at, locale)}
+                </li>
+              )}
               <li>
-                {t("s_weather")}: <a className="underline" href="https://open-meteo.com/" target="_blank" rel="noreferrer">Weather data by Open-Meteo.com</a>{" "}
-                (<a className="underline" href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noreferrer">CC BY 4.0</a>) ·{" "}
-                {status(t, r.sources.weather.status)} · {fmtTime(r.sources.weather.fetched_at, locale)}
+                {t("s_roads")}: {r.sources.routing}
               </li>
-            )}
-            <li>
-              {t("s_roads")}: {r.sources.routing}
-            </li>
-          </ul>
-        </section>
-      )}
-    </>
+            </ul>
+          </>
+        )}
+      </details>
+    </div>
   );
 }
 
-function Stat({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
+function MoneyRow({ label, sub, value, width, cls, strong }: { label: string; sub?: string; value: string; width: number; cls: string; strong?: boolean }) {
   return (
-    <div className="rounded-2xl bg-white/70 p-3">
-      <dt className="text-xs text-ink-500">{label}</dt>
-      <dd className={strong ? "text-2xl font-bold text-leaf-800" : "text-xl font-semibold text-ink-900"}>{value}</dd>
-    </div>
+    <li>
+      <div className="flex items-baseline justify-between gap-3">
+        <span className={strong ? "font-bold text-ink-900" : "text-ink-800"}>
+          {label}
+          {sub && <span className="block text-xs text-ink-500">{sub}</span>}
+        </span>
+        <span className={`shrink-0 font-display ${strong ? "text-2xl font-extrabold text-leaf-800" : "text-lg font-bold"}`}>{value}</span>
+      </div>
+      <div className="mt-1 h-3 overflow-hidden rounded-full bg-white/80">
+        <div className={`h-full rounded-full ${cls}`} style={{ width: `${Math.min(100, Math.max(width > 0 ? 1.5 : 0, width * 100))}%` }} />
+      </div>
+    </li>
   );
 }
 

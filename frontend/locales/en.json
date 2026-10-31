@@ -109,67 +109,202 @@
     "gain_note": "mean gain per quintal over the nearest mandi, across {n} replayed decisions in {v} villages"
   },
   "how": {
-    "title": "One question, seven steps, all on screen.",
-    "sub": "Harvest Compass is a LangGraph agent. The language model reads the question and phrases the answer. Everything between, including every rupee, is plain code you can check.",
-    "loop": [
+    "title": "Follow one question, from voice to answer.",
+    "sub": "A farmer asks out loud. Seven steps later they hear which mandi pays the most and which days are dry enough to harvest. AI is used only to understand the question and to word the reply. Everything in between is plain maths you can check.",
+    "ask_label": "The farmer asks",
+    "question": "I have 40 quintals of soybean in Sanwer, near Indore. Where should I sell?",
+    "legend_ai": "AI",
+    "legend_code": "Rules & maths",
+    "legend_ai_long": "AI language model",
+    "legend_code_long": "Plain rules and maths, no AI",
+    "out_label": "After this step",
+    "flow": [
       {
         "name": "Understand",
-        "body": "A language model turns the question, in English, Hindi or any of 21 other Indian languages, into a strict form: crop, quantity, village, harvest window, vehicle rate. Sacks need a stated weight. If the village matches two places, or a value is missing, it asks one short question."
+        "plain": "Turns everyday speech into clear facts. If something is missing, it asks one short question instead of guessing.",
+        "out": [
+          "Soybean",
+          "40 quintals",
+          "Sanwer, Indore",
+          "Vehicle rate?"
+        ]
       },
       {
         "name": "Plan",
-        "body": "Plain rules decide which sources to call and why: today's prices, 30 days of history, two weather models, road routes. A question about waiting adds the trend step."
+        "plain": "Works out what this question needs to know, and where to find it.",
+        "out": [
+          "Today's mandi prices",
+          "Last 30 days of prices",
+          "Rain forecast from two models",
+          "Road distance to each mandi"
+        ]
       },
       {
         "name": "Fetch",
-        "body": "Calls run in parallel with timeouts and one retry. Every response is cached with its source URL and fetch time, so a later failure can fall back to real older data and say how old it is."
+        "plain": "Collects everything at the same time from public sources, and keeps a dated copy of each answer.",
+        "out": [
+          "Mandi prices",
+          "Weather",
+          "Roads & maps"
+        ]
       },
       {
-        "name": "Audit",
-        "body": "Pure rules, no model: prices older than 3 days, min above max, outliers against the mandi's own month and the region, and mismatched variety or grade are excluded. Each rejection is shown with its reason."
+        "name": "Check",
+        "plain": "Throws out prices that are old, unusual or for a different variety, and keeps the reason to show the farmer.",
+        "out": [
+          "Price is 25 days old",
+          "Different variety",
+          "Not found on the map"
+        ]
       },
       {
-        "name": "Repair",
-        "body": "If too few mandis survive, the search radius widens. If today's price feed is down, each mandi's latest report is used with its age. If one weather model is down, the other is used and days are marked uncertain."
+        "name": "Recover",
+        "plain": "If a source is down, it switches to a backup and says how fresh that data is. It never fills a gap with a guess.",
+        "out": [
+          "Price feed down",
+          "Latest stored report, with its date",
+          "One forecast down",
+          "The other weather model"
+        ]
       },
       {
         "name": "Calculate",
-        "body": "Each mandi's 7-day median price minus round-trip transport (trips × 2 × km × the farmer's rate) gives net ₹ per quintal. A farther mandi has to win by more than ₹50 a quintal to beat a nearer one."
+        "plain": "For every mandi: the price, minus the cost of getting there and back. The most money left in hand wins.",
+        "out": [
+          "Mandi price",
+          "Transport both ways",
+          "Money in hand"
+        ]
       },
       {
-        "name": "Explain",
-        "body": "The model writes two or three sentences in the farmer's language from the computed facts only. A checker rejects any number or mandi name not in the facts, retries once, then falls back to a fixed template. Sarvam reads it aloud."
+        "name": "Answer",
+        "plain": "Writes a short reply in the farmer's language using only the computed numbers, then reads it aloud.",
+        "out": [
+          "Spoken in the farmer's language",
+          "Every number matched to the facts"
+        ]
       }
     ],
-    "rules_title": "Audit rules",
-    "rules_body": "A rejected mandi is never silently dropped. The farmer sees it under \"Mandis left out\" with the reason.",
+    "rules_title": "Five checks before a price is trusted",
+    "rules_body": "Public price data is messy. A mandi that fails a check is never hidden: the farmer sees it under \"Mandis left out\" with the reason.",
     "rules": [
       {
-        "k": "Stale",
+        "k": "Too old",
         "v": "Price reported more than 3 days ago"
       },
       {
-        "k": "Inconsistent",
-        "v": "Minimum above maximum, or the modal price outside the min–max range"
+        "k": "Doesn't add up",
+        "v": "Lowest price above the highest, or the usual price outside that range"
       },
       {
-        "k": "Outlier",
-        "v": "Unusual against both the mandi's own last 30 days and today's regional prices (robust z-score)"
+        "k": "Unusual",
+        "v": "Far from both the mandi's own last month and today's prices nearby"
       },
       {
         "k": "Not comparable",
-        "v": "Different variety or grade from the most common lot in the region"
+        "v": "A different variety or grade from what most mandis nearby report"
       },
       {
-        "k": "Unmapped",
-        "v": "Mandi town not found on OpenStreetMap, so no honest road distance"
+        "k": "Not on the map",
+        "v": "Mandi town can't be found, so there's no honest road distance"
       }
     ],
-    "switches_title": "Test switches",
-    "switches_body": "On the ask page, the test switches let anyone turn a source off for the next question: today's prices, one weather model, routing. The agent skips it and the log shows how it recovers.",
-    "voice_title": "Voice",
-    "voice_body": "Sarvam speech-to-text turns the recording into text in the chosen language (all 22 scheduled languages and English), which lands in the box so the farmer can fix a misheard word. The reply is spoken by Sarvam text-to-speech in the 9 languages it has voices for; the rest get text. If the mic is blocked or speech fails, typing and reading still work.",
-    "try_btn": "Try a question"
+    "switches_title": "Built to keep working",
+    "switches_body": "On the ask page, test switches turn off a source for the next question: today's prices, one weather model, or routing. The agent skips it and the step log shows how it recovers.",
+    "voice_title": "Speak or type",
+    "voice_body": "Questions can be spoken in 22 Indian languages and English, and the words land in the box so a misheard word can be fixed. Replies are read aloud in 9 languages and shown as text in all of them.",
+    "try_btn": "Try a question",
+    "map": {
+      "title": "The whole system on one screen",
+      "sub": "Where AI is used, where Sarvam voice is used, which live data is fetched, and how the agent repairs itself. Tap any box.",
+      "agent": "LangGraph agent",
+      "tags": {
+        "user": "farmer",
+        "voice": "Sarvam voice",
+        "ai": "AI model",
+        "code": "plain code",
+        "data": "live data"
+      },
+      "loop_legend": "goes back and tries again",
+      "parallel": "all fetched at once",
+      "e_speech": "speech",
+      "e_text": "typed",
+      "e_repair": "too few mandis or a source down",
+      "e_retry": "invented number",
+      "e_card": "text answer, map, cost breakdown and sources",
+      "e_spoken": "spoken, if asked by mic",
+      "tap_hint": "Tap a box to see what it does.",
+      "nodes": {
+        "farmer": {
+          "name": "Farmer",
+          "d": "Asks by voice or text in any of 23 languages. No app, no login."
+        },
+        "stt": {
+          "name": "Speech to text",
+          "d": "Sarvam turns the recording into text in the chosen language. The text appears in the box so the farmer can fix a misheard word."
+        },
+        "prices": {
+          "name": "Mandi prices",
+          "d": "data.gov.in: today's prices and 30 days of history for every mandi in the farmer's state."
+        },
+        "weather": {
+          "name": "Weather",
+          "d": "Open-Meteo: daily rain from two models, ECMWF and GFS."
+        },
+        "roads": {
+          "name": "Road distance",
+          "d": "OSRM: real road km and drive time from the village to each mandi."
+        },
+        "places": {
+          "name": "Places",
+          "d": "OpenStreetMap: where the village and each mandi are. One lookup a second, results saved."
+        },
+        "cache": {
+          "name": "Saved data",
+          "d": "Postgres keeps every real response with its source and time, so a failed call can fall back to real older data."
+        },
+        "understand": {
+          "name": "Understand",
+          "d": "The AI model turns the question into clear facts: crop, quantity, village, harvest dates, vehicle rate. If something is missing, it asks one short question."
+        },
+        "plan": {
+          "name": "Plan",
+          "d": "Rules pick which sources to call and why."
+        },
+        "fetch": {
+          "name": "Fetch",
+          "d": "Calls every source at once, with a time limit and one retry, and records each source and fetch time."
+        },
+        "audit": {
+          "name": "Check data",
+          "d": "Rejects stale, contradictory, unusual or different-variety prices, and names each mandi it left out."
+        },
+        "repair": {
+          "name": "Repair",
+          "d": "If a source is down or too few mandis are left: use saved real data with its age, switch weather model, or search wider. Then fetch again."
+        },
+        "calc": {
+          "name": "Calculate",
+          "d": "7-day median price minus round-trip transport at the farmer's rate = money in hand per quintal. Also the safest dry days and the price trend."
+        },
+        "explain": {
+          "name": "Write answer",
+          "d": "The AI model words two or three sentences in the farmer's language, using only the calculated facts."
+        },
+        "check": {
+          "name": "Number check",
+          "d": "Every number and the mandi name must match the facts. If not, the answer is rewritten once, then a fixed template is used."
+        },
+        "answer": {
+          "name": "Answer card",
+          "d": "Best mandi, money in hand, map, comparison table, editable costs, and every source with its time."
+        },
+        "tts": {
+          "name": "Text to speech",
+          "d": "Sarvam reads the answer aloud when the question was spoken or read-aloud is on. A daily limit protects credits."
+        }
+      }
+    }
   },
   "results": {
     "title": "What we measured",
@@ -408,6 +543,23 @@
     "src_database": "Cache database",
     "src_llm": "Language model",
     "src_voice": "Voice (Sarvam)",
-    "read_aloud": "🔊 Read answers aloud (spoken questions always get a spoken answer)"
+    "read_aloud": "🔊 Read answers aloud (spoken questions always get a spoken answer)",
+    "new_chat": "New question",
+    "you": "You",
+    "agent": "Harvest Compass",
+    "activity_idle": "Ask a question to watch each step here.",
+    "steps_n": "{n} steps",
+    "why": "Why this mandi",
+    "money": "Your money, step by step",
+    "m_gross": "Sale value ({q} q × {p})",
+    "m_transport": "Transport, both ways",
+    "m_charges": "Hammali / weighing",
+    "m_net": "In your hand",
+    "edit": "Change your numbers",
+    "best_tag": "Best",
+    "vs_best": "{p}/q less than best",
+    "weather": "Harvest days",
+    "welcome": "Tell us your crop, how much you have and your village. You'll get the best mandi after transport and the dry days to harvest.",
+    "more": "More details"
   }
 }
