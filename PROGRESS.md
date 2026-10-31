@@ -193,3 +193,24 @@ Playwright on localhost, 390×844:
 - The Hindi answer sometimes says "शुद्ध लाभ" (net profit) for what is the net price after transport. To tighten in the explain prompt in M7.
 - Mic recording → Sarvam is wired up but not yet tested with a real voice; that's M6.
 - **Status: M5 criteria pass. Next: M6 voice, then deploy a first version (brief: by Sat evening).**
+
+## Review fixes after M5 (31 Oct 2026, human review)
+1. **No placeholder vehicle rate** (the rules ban fake placeholder numbers). Removed the ₹30/km and 25 q defaults from config. If neither the farmer's words nor the edit boxes give them, the agent asks: "गाड़ी का किराया कितने रुपये प्रति किलोमीटर है, और एक चक्कर में कितने क्विंटल आता है?". The question is sent back with the answer, so a terse reply like "40 रुपये, 30" is read correctly (verified in the browser: ₹40/km, 30 q, 2 trips). We ask per km only: a whole-trip quote is for one destination and can't be compared across mandis.
+2. **₹6,900/q checked against raw data.gov.in rows** (history resource, cached with source URL):
+   - Sanwer APMC, Soyabean, variety "Soyabeen", grade FAQ, 30/10/2026: min 2200, max 7223, modal 6900.
+   - The same mandi/variety on earlier days: 6800 (29 Oct), 7000 (28 Oct), 6000 (27 Oct), 6500 (26 Oct), 6900 (24 Oct), 7000 (23 Oct), 7050 (15 Oct), 6300 (12 Oct). It moves day to day, so nothing is copied.
+   - Nearby mandis on the same days are at the same level: Indore ₹6,925, Ujjain ₹6,900, Rajgarh ₹7,300.
+   - Sanwer also reports a "Yellow"/FAQ line at ₹5,514 (30 Oct) and "Non-FAQ" lines at ₹5,000–6,000. The audit compares only the main like-for-like group (Soyabeen/FAQ), and the UI shows the variety next to the price.
+   - For reference: the soybean MSP for 2026-27 is ₹5,708/q (Cabinet, 13 May 2026; https://ddnews.gov.in/en/cabinet-approves-higher-msp-for-14-kharif-crops-for-2026-27-marketing-season/). The market is ~21% above MSP across MP, so ₹6,900 is a real market price, not a variety mix-up.
+   - The 30 Oct row has min 2200 vs modal 6900, so the "wide price spread, mixed quality lots" info flag applies.
+3. **Mandi fee = 0, with its source**: MP Krishi Upaj Mandi Adhiniyam 1972, Sec 19(2) (https://prsindia.org/files/bills_acts/acts_states/madhya-pradesh/1973/1973MP24.pdf): the market fee is payable by the buyer and not deducted from the seller. **Hammali/tulai**: these are set by each mandi committee's bye-law, and our search found no citable current MP rate. So the line is shown as "not included — fill in if you pay it (rate set by the mandi committee)", with an edit box, instead of a made-up number.
+4. **Wording**: the explain prompt now forbids "लाभ"/"मुनाफ़ा" and uses "खर्च काटकर आपके हाथ में" / "शुद्ध भाव" (verified in the answer text).
+5. **Credit protection**: `app/ratelimit.py`: 10 paid calls a minute per visitor plus 300 an hour overall, on `/ask` and `/transcribe` (429 with a Hindi message). In memory, which is fine for one Render instance. Also set a spending cap on the OpenRouter key in its dashboard (team action).
+6. **Deploy files**: `backend/Dockerfile` (uv, `$PORT`, proxy headers), `.dockerignore`. Not built locally (Docker Desktop not running); Render will build it.
+7. **Voice test sheet**: `docs/VOICE_TEST.md` (10 scripts with expected crop/quantity/village). `recordings/` is gitignored.
+
+### Deploy steps (team, needs your accounts)
+- **Render** → New Web Service → this repo, root directory `backend`, runtime Docker, free plan. Env vars: `DATA_GOV_IN_API_KEY`, `SARVAM_API_KEY`, `OPENROUTER_API_KEY`, `LLM_MODEL=deepseek/deepseek-v4.1-flash`, `DATABASE_URL`, `NOMINATIM_USER_AGENT`, `FRONTEND_ORIGIN=https://<your-app>.vercel.app`.
+- **Vercel** → New Project → this repo, root directory `frontend`. Env var: `NEXT_PUBLIC_API_URL=https://<your-service>.onrender.com`.
+- **cron-job.org** → GET `https://<your-service>.onrender.com/health` every 10 minutes (keeps the free instance awake).
+- **OpenRouter** dashboard → set a credit limit on the key.

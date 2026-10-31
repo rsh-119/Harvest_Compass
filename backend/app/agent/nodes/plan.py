@@ -56,16 +56,12 @@ def make_plan(state: AgentState) -> list[dict[str, str]]:
             + (" (perishable)" if perishable else ""),
         }
     )
-    if (
-        p.rate_per_km == settings.default_rate_per_km
-        and p.capacity_q == settings.default_capacity_q
-    ):
-        steps.append(
-            {
-                "step": "assume_vehicle",
-                "why": f"no vehicle details given: assuming ₹{p.rate_per_km:.0f}/km and {p.capacity_q:.0f} q per trip (editable)",
-            }
-        )
+    steps.append(
+        {
+            "step": "transport",
+            "why": f"farmer's vehicle: ₹{p.rate_per_km:g}/km, {p.capacity_q:g} q per trip, both ways",
+        }
+    )
     return steps
 
 

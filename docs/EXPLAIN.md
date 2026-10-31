@@ -94,3 +94,8 @@ Ask from the terminal: `uv run python -m scripts.ask "मेरे पास 40 
 - `backend/app/main.py /transcribe`: audio upload → Sarvam STT → `{text}`. Empty audio → 400, over 5 MB → 413, Sarvam failure → 502 (the UI then says "please type").
 
 Run: `cd frontend && npm run dev` (needs the backend on :8000, or set `NEXT_PUBLIC_API_URL`).
+
+## Review fixes (31 Oct)
+- **Vehicle hire is asked, never assumed.** `understand` asks for ₹/km and quintals per trip if neither the farmer's words nor the UI edit boxes give them. The clarifying question goes back with the answer (`AskRequest.question`), so "40, 30" is read right. The confirmed village goes back too (`clarify.place`).
+- **`app/ratelimit.py`**: sliding windows in memory: 10/min per visitor, 300/hour total, on the two routes that spend credits. The visitor IP comes from `CF-Connecting-IP` (Render is behind Cloudflare), else the right-most `X-Forwarded-For` entry.
+- **`backend/Dockerfile`**: python 3.11 slim + uv, installs the locked deps only, runs uvicorn on `$PORT`.

@@ -50,6 +50,14 @@ SCHEMA = {
             "type": ["integer", "null"],
             "description": "if asked 'what if I wait N days'",
         },
+        "rate_per_km": {
+            "type": ["number", "null"],
+            "description": "vehicle hire in rupees per km, if said",
+        },
+        "capacity_q": {
+            "type": ["number", "null"],
+            "description": "quintals one vehicle trip carries, if said",
+        },
     },
     "required": ["crop_word", "quantity", "unit", "village", "already_harvested", "has_storage"],
 }
@@ -69,11 +77,13 @@ def _merge(old: Intent | None, new: Intent) -> Intent:
     return Intent(**data)
 
 
-async def extract(text: str) -> Intent:
+async def extract(text: str, question: str | None = None) -> Intent:
+    # "30, 25" only makes sense next to the question it answers.
+    user = text if question is None else f"Assistant asked: {question}\nFarmer answered: {text}"
     msg = await chat(
         [
             {"role": "system", "content": PROMPT.format(today=today_ist().isoformat())},
-            {"role": "user", "content": text},
+            {"role": "user", "content": user},
         ],
         tools=[{"type": "function", "function": {"name": "set_intent", "parameters": SCHEMA}}],
         tool_choice={"type": "function", "function": {"name": "set_intent"}},
@@ -96,6 +106,8 @@ async def extract(text: str) -> Intent:
         already_harvested=bool(args.get("already_harvested")),
         has_storage=bool(args.get("has_storage")),
         wait_days=args.get("wait_days"),
+        rate_per_km=args.get("rate_per_km") or None,
+        capacity_q=args.get("capacity_q") or None,
     )
 
 
@@ -152,7 +164,7 @@ def _ask(question_hi: str, question_en: str, intent: Intent, **extra: Any) -> di
 
 async def understand(state: AgentState) -> dict[str, Any]:
     req = state["request"]
-    intent = _merge(req.previous, await extract(req.text))
+    intent = _merge(req.previous, await extract(req.text, req.question))
     emit(
         "understand",
         f"Understood: {intent.model_dump(mode='json', exclude_none=True, exclude_defaults=True)}",
@@ -196,7 +208,26 @@ async def understand(state: AgentState) -> dict[str, Any]:
                 intent,
             )
         emit("understand", f"Village matched: {place.display_name}", f"गाँव मिला: {place.name}")
+    # Edit boxes win over words. Neither given -> ask; we never assume a hire rate.
+    rate = req.params.rate_per_km or intent.rate_per_km
+    cap = req.params.capacity_q or intent.capacity_q
+    if rate is None or cap is None:
+        q_hi, q_en = {
+            (True, True): (
+                "गाड़ी का किराया कितने रुपये प्रति किलोमीटर है, और एक चक्कर में कितने क्विंटल आता है?",
+                "Vehicle hire in ₹ per km, and how many quintals per trip?",
+            ),
+            (True, False): (
+                "गाड़ी का किराया कितने रुपये प्रति किलोमीटर है?",
+                "Vehicle hire in ₹ per km?",
+            ),
+            (False, True): ("एक चक्कर में गाड़ी में कितने क्विंटल आता है?", "Quintals per trip?"),
+        }[(rate is None, cap is None)]
+        # The confirmed place goes back with the question, so it isn't matched again.
+        return _ask(q_hi, q_en, intent, needs="vehicle", place=place.model_dump())
+    params = req.params.model_copy(update={"rate_per_km": rate, "capacity_q": cap})
     return {
+        "request": req.model_copy(update={"params": params}),
         "intent": intent,
         "quantity_q": qty,
         "place": place,

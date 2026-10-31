@@ -17,8 +17,8 @@ import {
 
 const MandiMap = dynamic(() => import("@/components/MandiMap"), { ssr: false });
 
-// Must match the backend defaults (config.py); the farmer edits them below the answer.
-const DEFAULT_PARAMS: Params = { rate_per_km: 30, capacity_q: 25, other_charges_per_q: 0 };
+// No vehicle defaults: the agent asks. Other charges start at 0 = "none entered" (labelled so).
+const DEFAULT_PARAMS: Params = { other_charges_per_q: 0 };
 
 const EXAMPLES = [
   "मेरे पास 40 क्विंटल सोयाबीन है, गाँव सांवेर, इंदौर। फसल 2 से 5 नवंबर के बीच तैयार होगी। कहाँ बेचूँ?",
@@ -76,13 +76,15 @@ export default function Home() {
           const f = e as Final;
           setFinal(f);
           setPending(f.clarify);
+          if (f.result) setParams((p) => ({ ...p, ...f.result!.costs })); // show what was used
         } else {
           setTrace((t) => [...t, e as TraceEvent]);
           if (e.event === "error") setError((e as TraceEvent).hi || (e as TraceEvent).en);
         }
       });
-    } catch {
-      setError("सर्वर से संपर्क नहीं हो पाया। थोड़ी देर बाद फिर कोशिश करें। (backend unreachable)");
+    } catch (err) {
+      const msg = err instanceof Error && err.message.includes("—") ? err.message : null; // our 429 text
+      setError(msg ?? "सर्वर से संपर्क नहीं हो पाया। थोड़ी देर बाद फिर कोशिश करें। (backend unreachable)");
     } finally {
       setBusy(false);
     }
@@ -95,8 +97,13 @@ export default function Home() {
     if (pending && !pending.unsupported) {
       // Answering our question: carry the intent forward instead of starting over.
       body.previous = pending.intent;
+      body.question = pending.hi;
+      body.place = pending.place;
       const kg = parseFloat(q.replace(/[^\d.]/g, ""));
-      if (pending.needs === "bori_kg" && kg > 0) body.params = { ...params, bori_kg: kg };
+      if (pending.needs === "bori_kg" && kg > 0) {
+        body.params = { ...params, bori_kg: kg };
+        setParams(body.params); // keep it for the next question in this conversation
+      }
     } else {
       lastText.current = q;
     }
@@ -411,7 +418,7 @@ function ResultCard({
             {rupee(b.transport_total)}
           </li>
           <li>
-            अन्य खर्च (हम्माली/तुलाई): {rupee(r.costs.other_charges_per_q)}/क्विं. = −{rupee(b.mandi_charges)}
+            हम्माली/तुलाई: {r.costs.other_charges_per_q > 0 ? `${rupee(r.costs.other_charges_per_q)}/क्विं. = −${rupee(b.mandi_charges)}` : "नहीं जोड़ी (आप देते हों तो नीचे भरें — दर मंडी समिति तय करती है)"}
           </li>
           <li className="text-xs text-ink-500">
             मंडी शुल्क खरीदार देता है, किसान से नहीं कटता (म.प्र. कृषि उपज मंडी अधिनियम 1972, धारा 19(2))।
@@ -422,7 +429,7 @@ function ResultCard({
           <NumField label="भाड़ा ₹/km" value={params.rate_per_km} onChange={(v) => setParams({ ...params, rate_per_km: v })} />
           <NumField label="गाड़ी में क्विंटल" value={params.capacity_q} onChange={(v) => setParams({ ...params, capacity_q: v })} />
           <NumField
-            label="अन्य खर्च ₹/क्विं."
+            label="हम्माली/तुलाई ₹/क्विं. (अगर आप देते हैं)"
             value={params.other_charges_per_q}
             min={0}
             onChange={(v) => setParams({ ...params, other_charges_per_q: v })}
@@ -489,7 +496,7 @@ function Stat({ label, value, strong }: { label: string; value: string; strong?:
   );
 }
 
-function NumField({ label, value, onChange, min = 1 }: { label: string; value: number; onChange: (v: number) => void; min?: number }) {
+function NumField({ label, value, onChange, min = 1 }: { label: string; value?: number; onChange: (v: number) => void; min?: number }) {
   return (
     <label className="text-xs text-ink-600">
       {label}
@@ -497,7 +504,7 @@ function NumField({ label, value, onChange, min = 1 }: { label: string; value: n
         type="number"
         inputMode="decimal"
         min={min}
-        value={value}
+        value={value ?? ""}
         onChange={(e) => onChange(Math.max(min, Number(e.target.value)))}
         className="mt-1 block w-full rounded-lg border border-ink-200 p-2 text-base text-ink-900"
       />

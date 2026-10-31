@@ -6,7 +6,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
@@ -16,6 +16,7 @@ from app.config import settings
 from app.data.cache import close_pool
 from app.faults import FAULTS
 from app.http import client
+from app.ratelimit import limit
 from app.tools import voice
 
 logging.basicConfig(level=logging.INFO)
@@ -90,7 +91,7 @@ async def run_agent(req: AskRequest) -> AsyncIterator[str]:
     )
 
 
-@app.post("/ask")
+@app.post("/ask", dependencies=[Depends(limit)])
 async def ask(req: AskRequest) -> StreamingResponse:
     return StreamingResponse(
         run_agent(req),
@@ -102,7 +103,7 @@ async def ask(req: AskRequest) -> StreamingResponse:
     )
 
 
-@app.post("/transcribe")
+@app.post("/transcribe", dependencies=[Depends(limit)])
 async def transcribe(audio: UploadFile) -> dict[str, str]:
     """Hindi speech -> text. The UI puts the text in the box, so the farmer can fix it."""
     data = await audio.read()

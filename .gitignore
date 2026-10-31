@@ -5,3 +5,6 @@ node_modules/
 .next/
 .coverage
 .playwright-mcp/
+
+# Team voice recordings for the M6 test (real voices; never committed)
+recordings/

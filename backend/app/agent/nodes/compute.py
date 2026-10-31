@@ -48,6 +48,7 @@ def confidence(
 
 def compute_result(state: AgentState, today: date) -> dict[str, Any]:
     i, p, qty = state["intent"], state["request"].params, state["quantity_q"]
+    assert p.rate_per_km and p.capacity_q  # understand asks until both are known
     costs = Costs(qty, p.capacity_q, p.rate_per_km, SELLER_FEE_RATE, p.other_charges_per_q)
     usable = [m for m in state["mandis"] if m.usable and m.row and m.route]
     history = state["history"]

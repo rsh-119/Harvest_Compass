@@ -26,13 +26,16 @@ class Intent(BaseModel):
     already_harvested: bool = False
     has_storage: bool = False
     wait_days: int | None = None
+    rate_per_km: float | None = None  # vehicle hire the farmer said
+    capacity_q: float | None = None  # quintals per trip the farmer said
 
 
 class Params(BaseModel):
-    """Farmer-editable numbers. Defaults are assumptions shown in the UI with an edit box."""
+    """Farmer-editable numbers from the UI's edit boxes. Vehicle hire has no default: if the
+    farmer hasn't given it here or in words, the agent asks (no made-up rates)."""
 
-    rate_per_km: float = Field(default=settings.default_rate_per_km, gt=0)
-    capacity_q: float = Field(default=settings.default_capacity_q, gt=0)
+    rate_per_km: float | None = Field(default=None, gt=0)
+    capacity_q: float | None = Field(default=None, gt=0)
     other_charges_per_q: float = Field(
         default=0, ge=0
     )  # hammali/weighing, set per mandi by bye-law
@@ -43,6 +46,7 @@ class Params(BaseModel):
 class AskRequest(BaseModel):
     text: str = Field(min_length=1, max_length=1000)
     previous: Intent | None = None  # intent from the last turn, when answering a clarification
+    question: str | None = Field(default=None, max_length=300)  # the question being answered
     place: Place | None = None  # village the farmer confirmed
     params: Params = Params()
     faults: list[str] = []

@@ -3,7 +3,8 @@
 export const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 export type Place = { name: string; display_name: string; lat: number; lon: number };
-export type Params = { rate_per_km: number; capacity_q: number; other_charges_per_q: number; bori_kg?: number };
+// Vehicle hire has no default: the agent asks the farmer (see understand.py).
+export type Params = { rate_per_km?: number; capacity_q?: number; other_charges_per_q: number; bori_kg?: number };
 
 export type TraceEvent = {
   event: string;
@@ -67,6 +68,7 @@ export type Clarify = {
   en: string;
   intent: Record<string, unknown>;
   options?: Place[];
+  place?: Place; // already-confirmed village, sent back with the answer
   needs?: string;
   unsupported?: boolean;
 };
@@ -83,6 +85,7 @@ export type Final = {
 export type AskBody = {
   text: string;
   previous?: Record<string, unknown> | null;
+  question?: string;
   place?: Place | null;
   params?: Params;
   faults?: string[];
@@ -95,6 +98,7 @@ export async function ask(body: AskBody, onEvent: (e: TraceEvent | Final) => voi
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
+  if (res.status === 429) throw new Error((await res.json()).detail);
   if (!res.ok || !res.body) throw new Error(`server returned ${res.status}`);
   const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
   let buf = "";

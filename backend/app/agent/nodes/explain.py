@@ -33,7 +33,9 @@ MONTHS_HI = [
 PROMPT = """You are speaking to a farmer in simple Hindi (Devanagari). Use ONLY the facts in the JSON.
 Max 60 words (about 20 seconds spoken). Say: best mandi, net rupees per quintal and total, safest
 harvest days if given, confidence. Write every number with digits, copied exactly from the facts.
-Do not add any other number. If "wait" is present, say it is a trend, not a forecast."""
+Do not add any other number. If "wait" is present, say it is a trend, not a forecast.
+The net figure is the price after transport and charges, NOT profit: say "खर्च काटकर आपके हाथ में"
+or "शुद्ध भाव". Never say "लाभ" or "मुनाफ़ा" (cultivation cost is not subtracted)."""
 
 
 def hi_date(iso: str) -> str:
