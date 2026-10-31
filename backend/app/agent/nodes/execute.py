@@ -9,13 +9,24 @@ from typing import Any
 from app.agent.state import AgentState, Mandi
 from app.agent.trace import emit
 from app.clock import today_ist
-from app.data.cache import Sourced
+from app.data.cache import Sourced, queue_refresh
 from app.data.regions import agmark
 from app.data.synonyms import DISTRICT_ALIASES
 from app.tools import geocode, mandi, routing, weather
 from app.tools.mandi import PriceRow
 
 HISTORY_DAYS = 30
+MODEL_NAMES = {"ecmwf_ifs025": "ECMWF", "gfs_seamless": "GFS"}
+STATUS_WORDS = {
+    "live": "live",
+    "cache": "stored copy",
+    "stale_cache": "older stored copy",
+    "error": "not available",
+}
+
+
+def model_names(models: list[str] | set[str]) -> str:
+    return " and ".join(MODEL_NAMES.get(m, m) for m in sorted(models))
 
 
 def weather_models(faults: set[str]) -> tuple[str, ...]:
@@ -168,7 +179,8 @@ async def execute(state: AgentState) -> dict[str, Any]:
     history = [r for d in days for r in d.data or []]
     emit(
         "tool_result",
-        f"History: {len(history)} rows over {HISTORY_DAYS} days ({sorted({d.status for d in days})})",
+        f"History: {len(history)} rows over {HISTORY_DAYS} days "
+        f"({', '.join(STATUS_WORDS[s] for s in sorted({d.status for d in days}))})",
         f"पिछले {HISTORY_DAYS} दिन के {len(history)} रिकॉर्ड",
         tool="mandi_history",
         source_url=days[0].source_url if days else None,
@@ -177,31 +189,41 @@ async def execute(state: AgentState) -> dict[str, Any]:
     if cur.status == "error":
         emit(
             "repair",
-            f"Today's price source failed ({cur.error}); using each mandi's latest reported price, with its age",
+            f"Today's prices couldn't be fetched ({cur.error}); using each mandi's latest stored price, with its age",
             "आज के भाव का स्रोत बंद है; हर मंडी का सबसे ताज़ा उपलब्ध भाव (उम्र के साथ) लिया",
         )
     out: dict[str, Any] = {"current": cur, "history": history}
     if wres is not None:
         got = set((wres.data or {}).keys())
-        _trace("weather", wres, t0, f"Weather models received: {sorted(got)}", "मौसम पूर्वानुमान मिला")
+        _trace(
+            "weather", wres, t0, f"Weather received from {model_names(got)}", "मौसम पूर्वानुमान मिला"
+        )
         out["weather"] = wres
         missing = [m for m in weather.MODELS if m not in got]
         if missing and got:
             emit(
                 "repair",
-                f"Weather model {missing} unavailable; using {sorted(got)} only, so days are marked uncertain",
-                "एक मौसम मॉडल उपलब्ध नहीं; दूसरे मॉडल से काम चलाया, दिन 'अनिश्चित' माने गए",
+                f"Weather model {model_names(missing)} unavailable; using {model_names(got)} only "
+                "(one model only, lower confidence)",
+                "एक मौसम मॉडल उपलब्ध नहीं; सिर्फ़ दूसरे मॉडल से (कम भरोसा)",
             )
     elif want_weather:
         emit(
             "repair",
-            "No weather model available; harvest days can't be judged",
-            "मौसम की जानकारी नहीं मिली",
+            "No weather forecast available, so no harvest days are suggested",
+            "मौसम का पूर्वानुमान नहीं मिला, इसलिए कटाई के दिन नहीं बताए",
         )
     rows = latest_rows(
         [r for r in cur.data or [] if r.commodity == crop],
         [r for r in history if r.commodity == crop],
     )
     out["rows"] = rows
+    if not rows:
+        # Nothing stored for this state and crop. "error" = never fetched (data.gov.in refuses
+        # cloud servers), so queue it for the refresh job; an empty stored list means the feed
+        # simply had no reports for it.
+        out["no_prices"] = "not_loaded" if cur.status == "error" else "no_reports"
+        if cur.status == "error" and "mandi_current" not in faults:
+            await queue_refresh(agmark(state["region"]), crop)
     out["mandis"] = await _locate(state, rows)
     return out

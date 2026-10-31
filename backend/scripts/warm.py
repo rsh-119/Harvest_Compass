@@ -10,6 +10,9 @@ data.gov.in refuses cloud servers, so the hosted backend answers from this cache
 schedule from a machine in India. History older than 3 days is cached for good, so after the first
 run each refresh only fetches today's prices and the last few days. History is kept to
 settings.crops; the other crops get today's prices only.
+
+It also fetches every state x crop a farmer asked about that had no stored prices (the
+refresh_queue table the hosted backend fills), then clears those rows.
 """
 
 import asyncio
@@ -20,7 +23,7 @@ from datetime import timedelta
 from app.agent.nodes.execute import HISTORY_DAYS
 from app.clock import today_ist
 from app.config import settings
-from app.data.cache import close_pool
+from app.data.cache import close_pool, refresh_done, take_refresh_queue
 from app.data.crops import COMMODITIES
 from app.data.regions import AGMARK, agmark
 from app.data.synonyms import DISTRICT_ALIASES
@@ -55,6 +58,8 @@ async def warm_state(state: str, crops: list[str]) -> None:
 
 
 async def main(only: list[str], all_crops: bool) -> None:
+    # From India data.gov.in answers, but big pages can be slow: allow more than live questions.
+    mandi.TIMEOUT_S, mandi.RETRIES = 30.0, 2
     wanted = COMMODITIES if all_crops else settings.crops
     # Today's feed decides which crops each state reports, busiest state first.
     by_state: dict[str, set[str]] = {}
@@ -65,11 +70,18 @@ async def main(only: list[str], all_crops: bool) -> None:
         for r in await mandi._fetch_all(mandi.CURRENT_ID, f):
             if r["commodity"] in wanted:
                 by_state.setdefault(OSM_NAME.get(r["state"], r["state"]), set()).add(r["commodity"])
+    queued = await take_refresh_queue()  # agmark state spelling, crop
+    for st, crop in queued:
+        by_state.setdefault(OSM_NAME.get(st, st), set()).add(crop)
     states = only or sorted(by_state, key=lambda s: -len(by_state[s]))
-    print("states:", states, flush=True)
+    states += [OSM_NAME.get(st, st) for st, _ in queued if OSM_NAME.get(st, st) not in states]
+    print("states:", states, "queued:", queued, flush=True)
     try:
         for s in states:
             await warm_state(s, sorted(by_state.get(s, set(wanted))))
+            for st, crop in queued:
+                if OSM_NAME.get(st, st) == s:
+                    await refresh_done(st, crop)
     finally:
         await client.aclose()
         await close_pool()

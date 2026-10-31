@@ -20,7 +20,7 @@ from app.data import request_log
 from app.data.cache import close_pool
 from app.faults import FAULTS
 from app.health import status as health_status
-from app.http import client, describe
+from app.http import client
 from app.languages import LANGS, LangCode
 from app.ratelimit import limit
 from app.tools import voice
@@ -73,12 +73,13 @@ async def run_agent(req: AskRequest) -> AsyncIterator[str]:
                 yield _sse(events[-1])
             else:
                 final = dict(chunk)  # type: ignore[arg-type]
-    except Exception as e:  # show the failure in the trace instead of a silent broken stream
+    except Exception:  # show the failure in the trace instead of a silent broken stream
         log.exception("agent failed")
         err = {
             "event": "error",
-            "en": f"Agent error: {describe(e)}",
-            "hi": "कुछ गड़बड़ हो गई",
+            # Details go to the server log (log.exception above), not to the farmer.
+            "en": "Something went wrong while working on this question. Please try again.",
+            "hi": "कुछ गड़बड़ हो गई। कृपया फिर से पूछें।",
         }
         await request_log.record(int((time.monotonic() - start) * 1000), [*events, err], {})
         yield _sse(err)
@@ -103,7 +104,7 @@ async def run_agent(req: AskRequest) -> AsyncIterator[str]:
         if audio.data:
             yield _sse({"event": "audio", "wav_b64": base64.b64encode(audio.data).decode()})
         else:
-            yield _sse({"event": "audio_failed", "en": f"Voice reply failed: {audio.error}"})
+            yield _sse({"event": "audio_failed", "en": f"The spoken reply failed: {audio.error}"})
 
 
 @app.post("/ask", dependencies=[Depends(limit)])
@@ -133,7 +134,7 @@ async def transcribe(audio: UploadFile, lang: Annotated[LangCode, Form()] = "en"
         lang,
     )
     if res.data is None:
-        if res.error and "VoiceLimit" in res.error:
+        if res.error and res.error.startswith(("daily voice limit", "voice is switched off")):
             raise HTTPException(429, "voice limit for today reached")
         raise HTTPException(502, f"speech-to-text failed: {res.error}")
     return {"text": res.data}

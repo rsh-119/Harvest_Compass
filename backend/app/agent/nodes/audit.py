@@ -128,7 +128,8 @@ async def audit(state: AgentState) -> dict[str, Any]:
     usable = sum(m.usable for m in mandis)
     emit(
         "compute",
-        f"Audit done: {usable} usable of {len(mandis)} mandis; comparing {group}",
+        f"Audit done: {usable} usable of {len(mandis)} mandis"
+        + (f"; comparing {group[0]} ({group[1]})" if group else ""),
         f"जाँच पूरी: {len(mandis)} में से {usable} मंडियाँ भरोसेमंद",
         usable=usable,
         group=group,
@@ -138,4 +139,10 @@ async def audit(state: AgentState) -> dict[str, Any]:
 
 def needs_repair(state: AgentState) -> bool:
     usable = sum(m.usable for m in state["mandis"])
-    return usable < 3 and state["repairs"] < 2 and state["radius_km"] < settings.max_radius_km
+    # Prices are fetched state-wide, so with no rows at all a wider radius can't help.
+    return (
+        bool(state["rows"])
+        and usable < 3
+        and state["repairs"] < 2
+        and state["radius_km"] < settings.max_radius_km
+    )

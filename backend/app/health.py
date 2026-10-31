@@ -11,7 +11,7 @@ from typing import Any
 
 from app.config import settings
 from app.data.cache import get_pool
-from app.http import describe, request_json
+from app.http import plain, request_json
 from app.tools import mandi, routing, voice, weather
 
 _memo: tuple[float, dict[str, Any]] | None = None
@@ -31,7 +31,7 @@ async def _mandi() -> None:
         mandi.BASE + mandi.CURRENT_ID,
         params={"api-key": settings.data_gov_in_api_key, "format": "json", "limit": 1},
         retries=0,
-        timeout=8,
+        timeout=5,
     )
     if "records" not in body:
         raise RuntimeError("no records field")
@@ -44,13 +44,13 @@ async def _weather() -> None:
         weather.URL,
         params={**params, "daily": "precipitation_sum", "forecast_days": 1},
         retries=0,
-        timeout=8,
+        timeout=5,
     )
 
 
 async def _routing() -> None:
     a = f"{settings.center_lon},{settings.center_lat}"
-    await request_json("GET", f"{routing.BASE}{a};{a}?sources=0", retries=0, timeout=8)
+    await request_json("GET", f"{routing.BASE}{a};{a}?sources=0", retries=0, timeout=5)
 
 
 async def _check(fn: Any) -> dict[str, Any]:
@@ -59,7 +59,7 @@ async def _check(fn: Any) -> dict[str, Any]:
         await fn()
         return {"ok": True, "ms": int((time.monotonic() - t0) * 1000)}
     except Exception as e:
-        return {"ok": False, "error": describe(e)[:200]}
+        return {"ok": False, "error": plain(e)}
 
 
 async def status() -> dict[str, Any]:
@@ -78,7 +78,7 @@ async def status() -> dict[str, Any]:
             "ok": bool(settings.sarvam_api_key) and left > 0,
             "note": f"not probed; {used} of {settings.voice_daily_limit} live calls used today",
         }
-    except Exception as e:
-        out["voice"] = {"ok": bool(settings.sarvam_api_key), "note": f"usage unknown: {e}"[:200]}
+    except Exception:
+        out["voice"] = {"ok": bool(settings.sarvam_api_key), "note": "usage count unavailable"}
     _memo = (time.monotonic(), out)
     return out

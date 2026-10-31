@@ -17,7 +17,7 @@ from psycopg_pool import AsyncConnectionPool
 from pydantic import BaseModel
 
 from app.config import settings
-from app.http import describe
+from app.http import describe, plain
 
 log = logging.getLogger("cache")
 T = TypeVar("T")
@@ -120,7 +120,8 @@ async def cached(
     try:
         payload = await fetch()
     except Exception as e:  # any failure -> fall back to old real data, never to made-up data
-        err = describe(e)[:300]
+        log.warning("fetch failed for %s: %s", key, describe(e)[:300])
+        err = plain(e)
         if hit:
             return Sourced(
                 data=hit[0], source_url=hit[1], fetched_at=hit[2], status="stale_cache", error=err
@@ -131,3 +132,51 @@ async def cached(
     except Exception as e:
         log.warning("cache write failed, answer still served live: %s", e)
     return Sourced(data=payload, source_url=source_url, fetched_at=now, status="live")
+
+
+# State x crop pairs a farmer asked about that had no stored prices. The hosted backend can't
+# reach data.gov.in, so it queues them; scripts.warm (run from India) fetches them next run.
+async def queue_refresh(state: str, crop: str) -> None:
+    """Best effort: a queue failure must never break the farmer's answer."""
+    try:
+        pool = await get_pool()
+        if pool is None:
+            return
+        async with pool.connection() as conn:
+            await conn.execute(
+                """CREATE TABLE IF NOT EXISTS refresh_queue (
+                       state text NOT NULL, crop text NOT NULL,
+                       asked_at timestamptz NOT NULL DEFAULT now(),
+                       PRIMARY KEY (state, crop))"""
+            )
+            await conn.execute(
+                "INSERT INTO refresh_queue (state, crop) VALUES (%s, %s)"
+                " ON CONFLICT (state, crop) DO UPDATE SET asked_at = now()",
+                (state, crop),
+            )
+    except Exception as e:
+        log.warning("refresh queue write failed: %s", e)
+
+
+async def take_refresh_queue() -> list[tuple[str, str]]:
+    """Every queued (state, crop). Rows are removed with refresh_done() once fetched."""
+    pool = await get_pool()
+    if pool is None:
+        return []
+    async with pool.connection() as conn:
+        cur = await conn.execute("SELECT to_regclass('refresh_queue') IS NOT NULL")
+        row = await cur.fetchone()
+        if not row or not row[0]:
+            return []
+        cur = await conn.execute("SELECT state, crop FROM refresh_queue ORDER BY asked_at")
+        return [(s, c) for s, c in await cur.fetchall()]
+
+
+async def refresh_done(state: str, crop: str) -> None:
+    pool = await get_pool()
+    if pool is None:
+        return
+    async with pool.connection() as conn:
+        await conn.execute(
+            "DELETE FROM refresh_queue WHERE state = %s AND crop = %s", (state, crop)
+        )

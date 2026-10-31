@@ -53,6 +53,7 @@ class AskRequest(BaseModel):
     place: Place | None = None  # village the farmer confirmed
     params: Params = Params()
     faults: list[str] = []
+    recalc: bool = False  # "Change your numbers": the edit boxes win over the words
     speak: bool = False  # also send the reply as audio (if the language has a voice)
     lang: LangCode = "en"  # language of questions, answer and voice
 
@@ -82,6 +83,7 @@ class AgentState(TypedDict, total=False):
     history: list[PriceRow]
     weather: Sourced[dict[str, Any]]
     rows: list[PriceRow]  # latest row per (mandi, variety, grade): today's, else newest history
+    no_prices: str  # "not_loaded" / "no_reports" when nothing is stored for this state and crop
     mandis: list[Mandi]
     group: tuple[str, str]
     repairs: int

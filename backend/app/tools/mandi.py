@@ -6,10 +6,12 @@
 """
 
 import asyncio
+import time
 from datetime import date, datetime, timedelta
 from typing import Any, Literal
 from urllib.parse import urlencode
 
+import httpx
 from pydantic import BaseModel
 
 from app.clock import today_ist
@@ -72,6 +74,42 @@ def parse_row(r: dict[str, Any], source: Literal["current", "history"]) -> Price
         return None
 
 
+# data.gov.in refuses cloud servers (403 from Cloud Run, connection refused from Render). After
+# one refusal we stop calling it for 30 minutes and answer from the database only, instead of
+# making every question wait on a request that will fail.
+BREAKER_SECONDS = 30 * 60
+_skip_until = 0.0
+# Live questions: one try, 5 s. The laptop refresh job (scripts.warm) raises these for big pages.
+TIMEOUT_S = 5.0
+RETRIES = 0
+
+
+class SourceSkipped(RuntimeError):
+    pass
+
+
+def _is_refusal(e: Exception) -> bool:
+    return isinstance(e, httpx.ConnectError) or (
+        isinstance(e, httpx.HTTPStatusError) and e.response.status_code == 403
+    )
+
+
+async def _get(resource: str, params: dict[str, Any]) -> Any:
+    global _skip_until
+    if time.monotonic() < _skip_until:
+        raise SourceSkipped(
+            "data.gov.in refused this server recently, so only stored prices are used"
+        )
+    try:
+        return await request_json(
+            "GET", BASE + resource, params=params, retries=RETRIES, timeout=TIMEOUT_S
+        )
+    except Exception as e:
+        if _is_refusal(e):
+            _skip_until = time.monotonic() + BREAKER_SECONDS
+        raise
+
+
 async def _fetch_all(resource: str, filters: dict[str, str]) -> list[dict[str, Any]]:
     """Page through every matching record."""
     records: list[dict[str, Any]] = []
@@ -84,9 +122,7 @@ async def _fetch_all(resource: str, filters: dict[str, str]) -> list[dict[str, A
             "offset": offset,
             **{f"filters[{k}]": v for k, v in filters.items()},
         }
-        # data.gov.in normally answers in ~1 s but sometimes hangs indefinitely. A short timeout
-        # plus the retry in request_json beats waiting on a hung request (measured in M2).
-        body = await request_json("GET", BASE + resource, params=params, timeout=20)
+        body = await _get(resource, params)
         batch = body.get("records", [])
         records += batch
         offset += PAGE

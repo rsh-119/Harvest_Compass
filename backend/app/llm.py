@@ -18,6 +18,7 @@ async def chat(
     # The model reasons before answering, and reasoning counts against max_tokens. Measured in
     # M4: 642 of 700 tokens went to reasoning, leaving an empty answer. So: low effort + headroom.
     max_tokens: int = 1500,
+    retries: int = 1,
 ) -> dict[str, Any]:
     """Returns the assistant message. Temperature 0: we want extraction, not creativity."""
     body: dict[str, Any] = {
@@ -35,7 +36,10 @@ async def chat(
         "POST",
         URL,
         json=body,
-        timeout=60,
+        # Measured over 7 days of real requests: the answer step's median is 3.5 s, p95 10.5 s.
+        # 10 s keeps most answers written by the model; a timeout falls back to the template.
+        timeout=10,
+        retries=retries,
         headers={"Authorization": f"Bearer {settings.openrouter_api_key}"},
     )
     usage = resp.get("usage", {})

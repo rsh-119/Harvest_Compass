@@ -8,7 +8,7 @@ from datetime import UTC, date, datetime
 from app.clock import today_ist
 from app.config import settings
 from app.data.cache import Sourced, cached, get_pool
-from app.http import describe, request_json
+from app.http import plain, request_json
 from app.languages import LANGS
 
 STT_URL = "https://api.sarvam.ai/speech-to-text"
@@ -17,7 +17,7 @@ TTS_MODEL = "bulbul:v4-flash"
 STT_MODEL = "saaras:v4"
 
 
-class VoiceLimit(Exception):
+class VoiceLimit(RuntimeError):
     pass
 
 
@@ -76,7 +76,7 @@ async def transcribe(audio: bytes, filename: str, mime: str, lang: str = "en") -
             "POST",
             STT_URL,
             headers=_headers(),
-            timeout=60,
+            timeout=15,  # clips are under 30 s; measured replies take 1-2 s
             data={"model": STT_MODEL, "mode": "transcribe", "language_code": LANGS[lang].stt},
             files={"file": (filename, audio, mime)},
         )
@@ -90,7 +90,7 @@ async def transcribe(audio: bytes, filename: str, mime: str, lang: str = "en") -
             source_url=STT_URL,
             fetched_at=None,
             status="error",
-            error=describe(e)[:300],
+            error=plain(e),
         )
 
 
@@ -106,7 +106,7 @@ async def speak(text: str, lang: str = "hi") -> Sourced[bytes]:
             "POST",
             TTS_URL,
             headers=_headers(),
-            timeout=60,
+            timeout=15,  # clips are under 30 s; measured replies take 1-2 s
             json={
                 "text": text,
                 "language_code": LANGS[lang].stt,
