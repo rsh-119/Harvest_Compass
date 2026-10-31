@@ -67,7 +67,7 @@ Choosing the mandi pays for onion, where prices differ a lot between mandis. For
 
 The 20th question correctly asks to confirm the tahsil (Mahidpur exists in OSM only as a tahsil). In a comparison, GPT-5.6 Terra also invented 0 numbers but transliterated a mandi name into the wrong town (Badnagar → "बदनावर"). Hence the name check, and deepseek as the demo model. Claude Sonnet 5.5 couldn't run: it doesn't support the forced tool call we use.
 
-**Voice test:** see `docs/VOICE_TEST.md` (10 team recordings; results to be added).
+**Voice test:** 10 real recordings, results to be added.
 
 ## Data sources and licences
 | Source | Used for | Licence / terms |
@@ -80,7 +80,7 @@ The 20th question correctly asks to confirm the tahsil (Mahidpur exists in OSM o
 | [Sarvam AI](https://www.sarvam.ai) — saaras:v4, bulbul:v4-flash | Hindi speech in and out | API terms |
 | [OpenRouter](https://openrouter.ai) | LLM access | API terms |
 
-Mandi fee: under MP Krishi Upaj Mandi Adhiniyam 1972, Sec 19(2), the buyer pays the market fee, so the seller's fee is 0. Hammali/tulai rates are set by each mandi committee, so they're an editable field, not a default. Details in `docs/DATA_SOURCES.md`.
+Mandi fee: under MP Krishi Upaj Mandi Adhiniyam 1972, Sec 19(2), the buyer pays the market fee, so the seller's fee is 0. Hammali/tulai rates are set by each mandi committee, so they're an editable field, not a default.
 
 **No dummy data.** Every price, forecast and distance comes from a live API or a cache of a real response, stored with `source_url` and `fetched_at`. The only reference lists in code are names: crop synonyms and OSM spellings of mandi towns.
 
@@ -133,8 +133,3 @@ uv run python -m scripts.smoke                       # one live call to every so
 
 ## Team
 _(add names and roles)_
-
-## More
-- `docs/EXPLAIN.md`: plain-English walkthrough of every file
-- `docs/DATA_SOURCES.md`: every endpoint, field and gotcha we verified
-- `PROGRESS.md`: the build log (goal → plan → build → check → verify → reflect, per milestone)

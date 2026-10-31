@@ -9,3 +9,8 @@ node_modules/
 
 # Team voice recordings for the M6 test (real voices; never committed)
 recordings/
+
+# Notes kept locally only; README.md is the one public doc
+*.md
+!/README.md
+docs/
