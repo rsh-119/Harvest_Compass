@@ -18,23 +18,33 @@ import {
   type Result,
   type TraceEvent,
 } from "@/lib/api";
+import { LANGS, LanguagePicker, useLang, type T } from "@/lib/i18n";
+
+const STATUS_KEY = { live: "st_live", cache: "st_cache", stale_cache: "st_stale_cache", error: "st_error" } as const;
+const status = (t: T, s: string) => (s in STATUS_KEY ? t(STATUS_KEY[s as keyof typeof STATUS_KEY]) : s);
 
 const MandiMap = dynamic(() => import("@/components/MandiMap"), { ssr: false });
 
 // No vehicle defaults: the agent asks. Other charges start at 0 = "none entered" (labelled so).
 const DEFAULT_PARAMS: Params = { other_charges_per_q: 0 };
 
-const EXAMPLES = [
-  "मेरे पास 40 क्विंटल सोयाबीन है, गाँव सांवेर, इंदौर। फसल 2 से 5 नवंबर के बीच तैयार होगी। कहाँ बेचूँ?",
-  "30 क्विंटल प्याज़ है, गाँव महू, इंदौर। रखने की जगह है, 5 दिन रुकूँ या अभी बेचूँ?",
-];
+// Example questions. Other languages see the English ones; the agent understands either way.
+const EXAMPLES: Record<string, string[]> = {
+  en: [
+    "I have 40 quintals of soybean in Sanwer village, Indore. It will be ready between 2 and 5 November. Where should I sell?",
+    "30 quintals of onion, village Mhow, Indore. I have storage. Should I wait 5 days or sell now?",
+  ],
+  hi: [
+    "मेरे पास 40 क्विंटल सोयाबीन है, गाँव सांवेर, इंदौर। फसल 2 से 5 नवंबर के बीच तैयार होगी। कहाँ बेचूँ?",
+    "30 क्विंटल प्याज़ है, गाँव महू, इंदौर। रखने की जगह है, 5 दिन रुकूँ या अभी बेचूँ?",
+  ],
+};
 
 const rupee = (n: number) => "₹" + Math.round(n).toLocaleString("en-IN");
-const hiDay = (iso: string) =>
-  new Date(iso + "T00:00:00").toLocaleDateString("hi-IN", { weekday: "short", day: "numeric", month: "long" });
-const hiTime = (iso: string | null | undefined) =>
-  iso ? new Date(iso).toLocaleString("hi-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" }) : "—";
-const distance = (m: MandiRow) => (m.road_km < 1 ? "उसी कस्बे में (same town)" : `${m.road_km} km सड़क से`);
+const fmtDay = (iso: string, locale: string) =>
+  new Date(iso + "T00:00:00").toLocaleDateString(locale, { weekday: "short", day: "numeric", month: "long" });
+const fmtTime = (iso: string | null | undefined, locale: string) =>
+  iso ? new Date(iso).toLocaleString(locale, { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" }) : "—";
 
 const EVENT_ICON: Record<string, string> = {
   understand: "👂",
@@ -50,8 +60,6 @@ const EVENT_ICON: Record<string, string> = {
   explain: "🗣️",
   error: "❌",
 };
-const STATUS_HI: Record<string, string> = { live: "लाइव", cache: "कैश", stale_cache: "पुराना कैश", error: "विफल" };
-const CONF_HI = { high: "भरोसा: ऊँचा", medium: "भरोसा: मध्यम", low: "भरोसा: कम" };
 const CONF_CLS = {
   high: "bg-leaf-100 text-leaf-800",
   medium: "bg-amber-100 text-amber-900",
@@ -59,6 +67,8 @@ const CONF_CLS = {
 };
 
 export default function AskPage() {
+  const { lang, t } = useLang();
+  const langInfo = LANGS.find((l) => l.code === lang)!;
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [trace, setTrace] = useState<TraceEvent[]>([]);
@@ -97,7 +107,7 @@ export default function AskPage() {
     setTrace([]);
     setAudioUrl(null);
     try {
-      await ask({ ...body, params: { ...params, ...body.params }, faults, speak: true }, (e) => {
+      await ask({ ...body, params: { ...params, ...body.params }, faults, speak: langInfo.voice, lang }, (e) => {
         if (e.event === "audio") {
           const bytes = Uint8Array.from(atob(String((e as TraceEvent).wav_b64)), (c) => c.charCodeAt(0));
           const url = URL.createObjectURL(new Blob([bytes], { type: "audio/wav" }));
@@ -110,12 +120,12 @@ export default function AskPage() {
           if (f.result) setParams((p) => ({ ...p, ...f.result!.costs })); // show what was used
         } else {
           setTrace((t) => [...t, e as TraceEvent]);
-          if (e.event === "error") setError((e as TraceEvent).hi || (e as TraceEvent).en);
+          if (e.event === "error") setError(lang === "hi" ? (e as TraceEvent).hi || (e as TraceEvent).en : (e as TraceEvent).en);
         }
       });
     } catch (err) {
       const msg = err instanceof Error && err.message.includes("—") ? err.message : null; // our 429 text
-      setError(msg ?? "सर्वर से संपर्क नहीं हो पाया। थोड़ी देर बाद फिर कोशिश करें। (backend unreachable)");
+      setError(msg ?? t("unreachable"));
     } finally {
       setBusy(false);
     }
@@ -128,7 +138,7 @@ export default function AskPage() {
     if (pending && !pending.unsupported) {
       // Answering our question: carry the intent forward instead of starting over.
       body.previous = pending.intent;
-      body.question = pending.hi;
+      body.question = pending.text ?? pending.en;
       body.place = pending.place;
       const kg = parseFloat(q.replace(/[^\d.]/g, ""));
       if (pending.needs === "bori_kg" && kg > 0) {
@@ -172,11 +182,11 @@ export default function AskPage() {
         stream.getTracks().forEach((tr) => tr.stop());
         setRecording(false);
         try {
-          const said = await transcribe(new Blob(chunks, { type: rec.mimeType }));
+          const said = await transcribe(new Blob(chunks, { type: rec.mimeType }), lang);
           setText(said);
           submit(said);
         } catch {
-          setError("आवाज़ समझ नहीं आई। कृपया फिर बोलें या लिखें। (speech-to-text failed)");
+          setError(t("stt_failed"));
         }
       };
       rec.start();
@@ -184,7 +194,7 @@ export default function AskPage() {
       setRecording(true);
       setTimeout(() => rec.state === "recording" && rec.stop(), 25_000); // Sarvam REST limit ~30 s
     } catch {
-      setError("माइक की अनुमति नहीं मिली। आप लिखकर पूछ सकते हैं। (mic permission denied)");
+      setError(t("mic_denied"));
     }
   }
 
@@ -193,23 +203,29 @@ export default function AskPage() {
   return (
     <main className="mx-auto max-w-3xl px-4 pt-10">
       <header>
-        <h1 className="font-display text-3xl leading-tight font-bold text-ink-900 sm:text-5xl">अपनी फसल के बारे में पूछें</h1>
-        <p className="mt-1 text-lg text-ink-600">लाइव मंडी भाव, सड़क की दूरी और दो मौसम मॉडल से — हर अंक का स्रोत साथ में।</p>
+        <h1 className="font-display text-3xl leading-tight font-bold text-ink-900 sm:text-5xl">{t("ask_title")}</h1>
+        <p className="mt-1 text-lg text-ink-600">{t("ask_sub")}</p>
         {server === "waking" && (
           <p className="mt-2 rounded-lg bg-amber-50 p-2 text-sm text-amber-900" role="status">
-            ⏳ सर्वर जाग रहा है, लगभग 1 मिनट लग सकता है… (free server waking up)
+            {t("waking")}
           </p>
         )}
         {server === "down" && (
-          <p className="mt-2 rounded-lg bg-red-50 p-2 text-sm text-red-800">सर्वर से संपर्क नहीं हो पाया। (backend unreachable)</p>
+          <p className="mt-2 rounded-lg bg-red-50 p-2 text-sm text-red-800">{t("down")}</p>
         )}
       </header>
 
       <section className="glass-strong mt-6 p-4 sm:p-6">
+        <div className="mb-4 sm:max-w-xs">
+          <LanguagePicker />
+        </div>
+        {!langInfo.voice && (
+          <p className="mb-3 rounded-xl bg-white/70 p-2 text-sm text-ink-600">{t("no_voice", { lang: langInfo.native })}</p>
+        )}
         {pending && (
           <div className="mb-3 rounded-xl bg-amber-50 p-3 text-amber-950" role="status">
             <p className="text-lg font-semibold">
-              {pending.hi}
+              {pending.text ?? pending.en}
               {audioUrl && <ListenButton url={audioUrl} />}
             </p>
             {pending.needs === "confirm_qty" && (
@@ -218,7 +234,7 @@ export default function AskPage() {
                 disabled={busy}
                 className="mt-2 rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm hover:bg-amber-100"
               >
-                हाँ, मात्रा सही है
+                {t("yes_qty")}
               </button>
             )}
             {pending.options && (
@@ -230,7 +246,7 @@ export default function AskPage() {
                     disabled={busy}
                     className="rounded-lg border border-amber-300 bg-white px-3 py-2 text-left text-sm hover:bg-amber-100"
                   >
-                    हाँ, {p.name}
+                    {t("yes")}, {p.name}
                     <span className="block text-xs text-ink-500">{p.display_name}</span>
                   </button>
                 ))}
@@ -239,7 +255,7 @@ export default function AskPage() {
           </div>
         )}
         <label htmlFor="q" className="text-sm font-medium text-ink-600">
-          {pending ? "जवाब लिखें या बोलें" : "अपनी फसल के बारे में पूछें — बोलकर या लिखकर"}
+          {pending ? t("answer_label") : t("ask_label")}
         </label>
         <textarea
           id="q"
@@ -247,7 +263,7 @@ export default function AskPage() {
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), submit())}
           rows={3}
-          placeholder="जैसे: 40 क्विंटल सोयाबीन है, गाँव सांवेर, इंदौर…"
+          placeholder={t("placeholder")}
           className="mt-1 w-full resize-none rounded-2xl border border-white bg-white/80 p-3 text-lg shadow-inner focus:border-leaf-600 focus:outline-none"
         />
         <div className="mt-2 flex gap-2">
@@ -259,20 +275,20 @@ export default function AskPage() {
               recording ? "animate-pulse bg-red-600" : "bg-ink-800 hover:bg-ink-700"
             } disabled:opacity-50`}
           >
-            {recording ? "⏹ रोकें" : "🎤 बोलें"}
+            {recording ? t("stop") : t("speak")}
           </button>
           <button
             onClick={() => submit()}
             disabled={busy || !text.trim()}
             className="btn-primary flex-1 text-lg disabled:opacity-50"
           >
-            {busy ? "सोच रहा हूँ…" : "पूछें"}
+            {busy ? t("thinking") : t("ask")}
           </button>
         </div>
         {!final && !busy && (
           <div className="mt-3 space-y-1">
-            <p className="text-xs text-ink-500">उदाहरण (टैप करें):</p>
-            {EXAMPLES.map((ex) => (
+            <p className="text-xs text-ink-500">{t("examples")}</p>
+            {(EXAMPLES[lang] ?? EXAMPLES.en).map((ex) => (
               <button key={ex} onClick={() => setText(ex)} className="block text-left text-sm text-leaf-800 underline-offset-2 hover:underline">
                 {ex}
               </button>
@@ -293,7 +309,7 @@ export default function AskPage() {
           {r.confidence && (
             <p className="mt-3">
               <span className={`rounded-full px-3 py-1 text-sm font-semibold ${CONF_CLS[r.confidence]}`}>
-                {CONF_HI[r.confidence]}
+                {t(`conf_${r.confidence}`)}
               </span>
               {r.confidence_reasons?.length ? (
                 <span className="ml-2 text-sm text-ink-600">({r.confidence_reasons.join("; ")})</span>
@@ -313,42 +329,44 @@ export default function AskPage() {
 }
 
 function ListenButton({ url }: { url: string }) {
+  const { t } = useLang();
   return (
     <button
       onClick={() => new Audio(url).play().catch(() => {})}
       className="ml-2 rounded-full bg-white px-2 py-0.5 align-middle text-base shadow-sm ring-1 ring-ink-200 hover:bg-ink-50"
-      aria-label="जवाब सुनें"
+      aria-label={t("listen")}
     >
       🔊
     </button>
   );
 }
 
-const SOURCE_HI: Record<string, string> = {
-  mandi_prices: "मंडी भाव (data.gov.in)",
-  weather: "मौसम (Open-Meteo)",
-  routing: "सड़क दूरी (OSRM)",
-  geocoding: "नक्शा खोज (Nominatim)",
-  database: "कैश डेटाबेस",
-  llm: "भाषा मॉडल",
-  voice: "आवाज़ (Sarvam)",
+const SOURCE_NAME: Record<string, string> = {
+  mandi_prices: "Mandi prices (data.gov.in)",
+  weather: "Weather (Open-Meteo)",
+  routing: "Road distance (OSRM)",
+  geocoding: "Place search (Nominatim)",
+  database: "Cache database",
+  llm: "Language model",
+  voice: "Voice (Sarvam)",
 };
 
 function Footer({ h, faults, setFaults }: { h: Health; faults: string[]; setFaults: (f: string[]) => void }) {
+  const { t } = useLang();
   const [use, setUse] = useState<Stats | null>(null);
   useEffect(() => {
     stats().then(setUse).catch(() => setUse(null));
   }, []);
   return (
-    <section className="mt-8 space-y-3 text-sm text-ink-600" aria-label="स्रोत और टेस्ट स्विच">
+    <section className="mt-8 space-y-3 text-sm text-ink-600" aria-label={t("health")}>
       <details className="glass p-4 sm:p-5">
         <summary className="cursor-pointer font-semibold text-ink-800">
-          स्रोत स्थिति {h.status === "ok" ? "✅" : "⚠️"} <span className="font-normal text-ink-500">(source health)</span>
+          {t("health")} {h.status === "ok" ? "✅" : "⚠️"}
         </summary>
         <ul className="mt-2 space-y-1">
           {Object.entries(h.sources).map(([k, v]) => (
             <li key={k}>
-              {v.ok ? "✅" : "❌"} {SOURCE_HI[k] ?? k}
+              {v.ok ? "✅" : "❌"} {SOURCE_NAME[k] ?? k}
               <span className="text-xs text-ink-500">
                 {v.ms != null ? ` · ${v.ms} ms` : v.note ? ` · ${v.note}` : ""}
                 {v.error ? ` · ${v.error}` : ""}
@@ -358,19 +376,23 @@ function Footer({ h, faults, setFaults }: { h: Health; faults: string[]; setFaul
         </ul>
         {use && use.requests > 0 && (
           <p className="mt-2 text-xs text-ink-500">
-            पिछले {use.days} दिन: {use.requests} सवाल · आधे {((use.p50_ms ?? 0) / 1000).toFixed(1)} s में, 95%{" "}
-            {((use.p95_ms ?? 0) / 1000).toFixed(1)} s में · रास्ता बदला (repair){" "}
-            {Math.round((use.fallback_rate ?? 0) * 100)}% · गढ़े गए अंक पकड़े: {use.invented_numbers}
+            {t("usage", {
+              d: use.days ?? 7,
+              n: use.requests,
+              p50: ((use.p50_ms ?? 0) / 1000).toFixed(1),
+              p95: ((use.p95_ms ?? 0) / 1000).toFixed(1),
+              fb: Math.round((use.fallback_rate ?? 0) * 100),
+              inv: use.invented_numbers ?? 0,
+            })}
           </p>
         )}
       </details>
       <details className="glass p-4 sm:p-5">
         <summary className="cursor-pointer font-semibold text-ink-800">
-          टेस्ट स्विच {faults.length > 0 && `(${faults.length} चालू)`}{" "}
-          <span className="font-normal text-ink-500">(demo: pretend a source is down)</span>
+          {t("switches")} {faults.length > 0 && t("switches_on", { n: faults.length })}
         </summary>
         <p className="mt-1 text-xs text-ink-500">
-          चुना गया स्रोत अगले सवाल में बुलाया नहीं जाएगा, ताकि आप एजेंट को रास्ता बदलते देख सकें। कोई नकली डेटा नहीं भरा जाता।
+          {t("switches_note")}
         </p>
         {Object.entries(h.test_switches).map(([k, label]) => (
           <label key={k} className="mt-1 flex items-center gap-2">
@@ -388,10 +410,11 @@ function Footer({ h, faults, setFaults }: { h: Health; faults: string[]; setFaul
 }
 
 function Trace({ events, busy }: { events: TraceEvent[]; busy: boolean }) {
+  const { lang, t, locale } = useLang();
   return (
     <section className="mt-6 glass p-4 sm:p-5">
       <h2 className="font-semibold text-ink-800">
-        एजेंट क्या कर रहा है <span className="text-sm font-normal text-ink-500">(live trace)</span>
+        {t("trace")}
         {busy && <span className="ml-2 inline-block h-2 w-2 animate-ping rounded-full bg-leaf-600" />}
       </h2>
       <ol className="mt-2 max-h-80 space-y-1 overflow-y-auto text-sm">
@@ -404,13 +427,13 @@ function Trace({ events, busy }: { events: TraceEvent[]; busy: boolean }) {
           >
             <span aria-hidden>{EVENT_ICON[e.event] ?? "•"}</span>
             <span className="min-w-0">
-              {e.hi && e.hi !== e.en && <span className="block text-ink-800">{e.hi}</span>}
+              {lang === "hi" && e.hi && e.hi !== e.en && <span className="block text-ink-800">{e.hi}</span>}
               <span className="block break-words text-ink-500">{e.en}</span>
               {e.status && (
                 <span className="text-xs text-ink-500">
-                  {STATUS_HI[e.status] ?? e.status}
+                  {status(t, e.status)}
                   {e.ms != null && ` · ${(e.ms / 1000).toFixed(1)} s`}
-                  {e.fetched_at && ` · ${hiTime(e.fetched_at)}`}
+                  {e.fetched_at && ` · ${fmtTime(e.fetched_at, locale)}`}
                 </span>
               )}
             </span>
@@ -436,43 +459,49 @@ function ResultCard({
   recalc: () => void;
   busy: boolean;
 }) {
+  const { lang, t, locale } = useLang();
   const b = r.best!;
+  const day = (iso: string) => fmtDay(iso, locale);
+  const distance = (m: MandiRow) => (m.road_km < 1 ? t("same_town") : t("by_road", { km: m.road_km }));
   return (
     <>
       <section className="mt-6 glass p-4 sm:p-5">
-        <p className="text-sm text-ink-500">सबसे अच्छी मंडी</p>
+        <p className="text-sm text-ink-500">{t("best")}</p>
         <h2 className="text-2xl font-bold text-leaf-800">{b.market}</h2>
         <p className="text-ink-600">
           {b.district} · {distance(b)}
-          {b.road_km >= 1 && ` · लगभग ${Math.round(b.drive_min)} मिनट`}
+          {b.road_km >= 1 && ` · ${t("about_min", { min: Math.round(b.drive_min) })}`}
         </p>
         <dl className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-          <Stat label="शुद्ध भाव / क्विंटल" value={rupee(b.net_per_quintal)} strong />
-          <Stat label={`कुल शुद्ध (${r.quantity_q} क्विं.)`} value={rupee(b.net_total)} />
+          <Stat label={t("net_q")} value={rupee(b.net_per_quintal)} strong />
+          <Stat label={t("net_total", { q: r.quantity_q })} value={rupee(b.net_total)} />
           <Stat
-            label="बुरे दिन का भाव / क्विं."
-            value={b.conservative_net_per_quintal == null ? "इतिहास कम" : rupee(b.conservative_net_per_quintal)}
+            label={t("bad_day")}
+            value={b.conservative_net_per_quintal == null ? t("little_history") : rupee(b.conservative_net_per_quintal)}
           />
         </dl>
         <p className="mt-2 text-xs text-ink-500">
-          हिसाब का भाव {rupee(b.price_used)}{" "}
-          {b.price_days > 1 ? `(पिछले ${b.price_days} रिपोर्ट का median)` : "(ताज़ा भाव)"} · आज का मॉडल भाव{" "}
-          {rupee(b.modal_price)} ({b.variety}) · भाव की तारीख {hiDay(b.arrival_date)}
-          {b.age_days > 0 && ` (${b.age_days} दिन पुराना)`}
+          {t("price_used", { p: rupee(b.price_used) })}{" "}
+          {b.price_days > 1 ? t("median_of", { n: b.price_days }) : t("latest")} ·{" "}
+          {t("modal_today", { p: rupee(b.modal_price) })} ({b.variety}) · {t("price_date", { d: day(b.arrival_date) })}
+          {b.age_days > 0 && ` ${t("days_old", { n: b.age_days })}`}
         </p>
         {r.nearer_pick && (
           <p className="mt-3 text-sm text-ink-700">
-            <b>{r.nearer_pick.skipped}</b> सिर्फ़ {rupee(r.nearer_pick.extra_per_quintal)}/क्विं. ज़्यादा देती, पर{" "}
-            {r.nearer_pick.extra_km} km और दूर है, इसलिए पास वाली मंडी बताई।
+            {t("nearer", {
+              m: r.nearer_pick.skipped,
+              p: rupee(r.nearer_pick.extra_per_quintal),
+              km: r.nearer_pick.extra_km,
+            })}
           </p>
         )}
         {r.runner_up && r.runner_up_gap && (
           <p className="mt-3 text-sm text-ink-700">
-            दूसरे नंबर पर <b>{r.runner_up.market}</b>:{" "}
+            {t("runner_up")} <b>{r.runner_up.market}</b>:{" "}
             {r.runner_up_gap.price > 0
-              ? `भाव ${rupee(r.runner_up_gap.price)} कम`
-              : `भाव ${rupee(-r.runner_up_gap.price)} ज़्यादा, पर भाड़ा ${rupee(r.runner_up_gap.transport_per_quintal)}/क्विं. ज़्यादा`}
-            {" "}— कुल मिलाकर {rupee(r.runner_up_gap.net_per_quintal)}/क्विं. कम।
+              ? t("ru_lower", { p: rupee(r.runner_up_gap.price) })
+              : t("ru_higher", { p: rupee(-r.runner_up_gap.price), t: rupee(r.runner_up_gap.transport_per_quintal) })}{" "}
+            {t("ru_total", { p: rupee(r.runner_up_gap.net_per_quintal) })}
           </p>
         )}
       </section>
@@ -481,7 +510,7 @@ function ResultCard({
         <section className="mt-4 glass p-4 sm:p-5">
           {r.harvest_days && r.harvest_days.length > 0 && (
             <>
-              <h3 className="font-semibold text-ink-800">कटाई / ढुलाई के लिए सुरक्षित दिन</h3>
+              <h3 className="font-semibold text-ink-800">{t("safe_days")}</h3>
               <ul className="mt-2 flex flex-wrap gap-2">
                 {r.harvest_days.map((d) => (
                   <li
@@ -489,48 +518,50 @@ function ResultCard({
                     className={`rounded-lg px-3 py-2 text-sm ${d.both_dry && !d.uncertain ? "bg-leaf-100 text-leaf-900" : "bg-amber-50 text-amber-900"}`}
                     title={d.reasons.join("; ")}
                   >
-                    {hiDay(d.day)} {d.both_dry ? "☀️ सूखा" : "🌧 बारिश संभव"}
-                    {d.uncertain && " · अनिश्चित"}
+                    {day(d.day)} {d.both_dry ? t("dry") : t("rain")}
+                    {d.uncertain && t("uncertain")}
                   </li>
                 ))}
               </ul>
               {r.beyond_forecast && r.beyond_forecast.length > 0 && (
                 <p className="mt-2 text-xs text-ink-500">
-                  {r.beyond_forecast.map(hiDay).join(", ")}: पूर्वानुमान अभी उपलब्ध नहीं (7 दिन से आगे)
+                  {r.beyond_forecast.map(day).join(", ")}: {t("no_forecast")}
                 </p>
               )}
             </>
           )}
           {r.wait && (
             <p className="mt-3 text-sm text-ink-700">
-              <b>{r.wait.days} दिन रुकें तो?</b>{" "}
+              <b>{t("wait_q", { n: r.wait.days })}</b>{" "}
               {r.wait.trend_change_per_quintal == null
-                ? "भाव का रुझान निकालने लायक इतिहास नहीं।"
-                : `पिछले 14 दिन के रुझान से भाव लगभग ${r.wait.trend_change_per_quintal >= 0 ? "+" : ""}${rupee(r.wait.trend_change_per_quintal)}/क्विं.`}
-              {r.wait.max_rain_risk != null && ` · बारिश का जोखिम ${Math.round(r.wait.max_rain_risk * 100)}%`}
-              <span className="block text-xs text-ink-500">यह रुझान है, पूर्वानुमान नहीं (trend, not forecast)</span>
+                ? t("no_trend")
+                : t("trend", {
+                    p: `${r.wait.trend_change_per_quintal >= 0 ? "+" : ""}${rupee(r.wait.trend_change_per_quintal)}`,
+                  })}
+              {r.wait.max_rain_risk != null && ` · ${t("rain_risk", { p: Math.round(r.wait.max_rain_risk * 100) })}`}
+              <span className="block text-xs text-ink-500">{t("trend_note")}</span>
             </p>
           )}
         </section>
       )}
 
       <section className="mt-4 glass p-4 sm:p-5">
-        <h3 className="mb-2 font-semibold text-ink-800">नक्शा</h3>
+        <h3 className="mb-2 font-semibold text-ink-800">{t("map")}</h3>
         <MandiMap origin={place} mandis={r.ranking.slice(0, 5)} />
       </section>
 
       <section className="mt-4 glass p-4 sm:p-5">
-        <h3 className="font-semibold text-ink-800">मंडियों की तुलना</h3>
+        <h3 className="font-semibold text-ink-800">{t("compare")}</h3>
         <div className="mt-2 overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="text-left text-xs text-ink-500">
               <tr>
                 <th className="py-1 pr-2">#</th>
-                <th className="pr-2">मंडी</th>
-                <th className="pr-2 text-right" title="7 दिन का median">भाव (7 दिन)</th>
-                <th className="pr-2 text-right">दूरी</th>
-                <th className="pr-2 text-right">भाड़ा</th>
-                <th className="text-right">शुद्ध/क्विं.</th>
+                <th className="pr-2">{t("col_mandi")}</th>
+                <th className="pr-2 text-right">{t("col_price")}</th>
+                <th className="pr-2 text-right">{t("col_dist")}</th>
+                <th className="pr-2 text-right">{t("col_transport")}</th>
+                <th className="text-right">{t("col_net")}</th>
               </tr>
             </thead>
             <tbody>
@@ -542,7 +573,7 @@ function ResultCard({
                     {m.age_days > 0 && <span className="text-xs text-ink-500"> ({m.age_days}d)</span>}
                   </td>
                   <td className="pr-2 text-right">{rupee(m.price_used)}</td>
-                  <td className="pr-2 text-right">{m.road_km < 1 ? "उसी कस्बे" : `${Math.round(m.road_km)} km`}</td>
+                  <td className="pr-2 text-right">{m.road_km < 1 ? t("same_town_short") : `${Math.round(m.road_km)} km`}</td>
                   <td className="pr-2 text-right">{rupee(m.transport_total)}</td>
                   <td className="text-right font-semibold">{rupee(m.net_per_quintal)}</td>
                 </tr>
@@ -553,28 +584,37 @@ function ResultCard({
       </section>
 
       <section className="mt-4 glass p-4 sm:p-5">
-        <h3 className="font-semibold text-ink-800">खर्च का हिसाब ({b.market})</h3>
+        <h3 className="font-semibold text-ink-800">{t("costs", { m: b.market })}</h3>
         <ul className="mt-2 space-y-1 text-sm text-ink-700">
           <li>
-            भाव: {rupee(b.price_used)} × {r.quantity_q} क्विं. = {rupee(b.price_used * r.quantity_q)}
+            {t("c_price", { p: rupee(b.price_used), q: r.quantity_q, t: rupee(b.price_used * r.quantity_q) })}
           </li>
           <li>
-            भाड़ा: {b.trips} चक्कर × 2 (आना-जाना) × {b.road_km} km × {rupee(r.costs.rate_per_km)}/km = −
-            {rupee(b.transport_total)}
+            {t("c_transport", {
+              trips: b.trips,
+              km: b.road_km,
+              r: rupee(r.costs.rate_per_km),
+              t: rupee(b.transport_total),
+            })}
           </li>
           <li>
-            हम्माली/तुलाई: {r.costs.other_charges_per_q > 0 ? `${rupee(r.costs.other_charges_per_q)}/क्विं. = −${rupee(b.mandi_charges)}` : "नहीं जोड़ी (आप देते हों तो नीचे भरें — दर मंडी समिति तय करती है)"}
+            {t("c_hammali", {
+              v:
+                r.costs.other_charges_per_q > 0
+                  ? `${rupee(r.costs.other_charges_per_q)}/q = −${rupee(b.mandi_charges)}`
+                  : t("c_hammali_none"),
+            })}
           </li>
           <li className="text-xs text-ink-500">
-            मंडी शुल्क खरीदार देता है, किसान से नहीं कटता (म.प्र. कृषि उपज मंडी अधिनियम 1972, धारा 19(2))।
+            {t("c_fee")}
           </li>
-          <li className="font-semibold">शुद्ध: {rupee(b.net_total)}</li>
+          <li className="font-semibold">{t("c_net", { t: rupee(b.net_total) })}</li>
         </ul>
         <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
-          <NumField label="भाड़ा ₹/km" value={params.rate_per_km} onChange={(v) => setParams({ ...params, rate_per_km: v })} />
-          <NumField label="गाड़ी में क्विंटल" value={params.capacity_q} onChange={(v) => setParams({ ...params, capacity_q: v })} />
+          <NumField label={t("f_rate")} value={params.rate_per_km} onChange={(v) => setParams({ ...params, rate_per_km: v })} />
+          <NumField label={t("f_cap")} value={params.capacity_q} onChange={(v) => setParams({ ...params, capacity_q: v })} />
           <NumField
-            label="हम्माली/तुलाई ₹/क्विं. (अगर आप देते हैं)"
+            label={t("f_hammali")}
             value={params.other_charges_per_q}
             min={0}
             onChange={(v) => setParams({ ...params, other_charges_per_q: v })}
@@ -585,7 +625,7 @@ function ResultCard({
           disabled={busy}
           className="mt-3 rounded-xl bg-ink-800 px-4 py-2 font-semibold text-white hover:bg-ink-700 disabled:opacity-50"
         >
-          दोबारा हिसाब करें
+          {t("recalc")}
         </button>
         {r.notes.length > 0 && <p className="mt-2 text-xs text-ink-500">{r.notes.join(" · ")}</p>}
       </section>
@@ -593,12 +633,12 @@ function ResultCard({
       {r.excluded.length > 0 && (
         <details className="mt-4 glass p-4 sm:p-5">
           <summary className="cursor-pointer font-semibold text-ink-800">
-            छोड़ी गई मंडियाँ ({r.excluded.length}) — क्यों?
+            {t("excluded", { n: r.excluded.length })}
           </summary>
           <ul className="mt-2 space-y-1 text-sm">
             {r.excluded.map((x) => (
               <li key={x.market + x.district}>
-                <b>{x.market}</b> ({x.district}): {(x.reasons_hi.length ? x.reasons_hi : x.reasons).join("; ")}
+                <b>{x.market}</b> ({x.district}): {(lang === "hi" && x.reasons_hi.length ? x.reasons_hi : x.reasons).join("; ")}
               </li>
             ))}
           </ul>
@@ -607,24 +647,27 @@ function ResultCard({
 
       {r.sources && (
         <section className="mt-4 glass p-4 sm:p-5 text-sm text-ink-700">
-          <h3 className="font-semibold text-ink-800">डेटा के स्रोत</h3>
+          <h3 className="font-semibold text-ink-800">{t("sources")}</h3>
           <ul className="mt-2 space-y-1">
             {r.sources.prices_today && (
               <li>
-                आज के भाव: <a className="underline" href={r.sources.prices_today.url} target="_blank" rel="noreferrer">data.gov.in</a>{" "}
-                · {STATUS_HI[r.sources.prices_today.status] ?? r.sources.prices_today.status} ·{" "}
-                {hiTime(r.sources.prices_today.fetched_at)}
+                {t("s_today")}: <a className="underline" href={r.sources.prices_today.url} target="_blank" rel="noreferrer">data.gov.in</a>{" "}
+                · {status(t, r.sources.prices_today.status)} · {fmtTime(r.sources.prices_today.fetched_at, locale)}
               </li>
             )}
-            <li>भाव का इतिहास: {r.sources.history}</li>
+            <li>
+              {t("s_history")}: {r.sources.history}
+            </li>
             {r.sources.weather && (
               <li>
-                मौसम: <a className="underline" href="https://open-meteo.com/" target="_blank" rel="noreferrer">Weather data by Open-Meteo.com</a>{" "}
+                {t("s_weather")}: <a className="underline" href="https://open-meteo.com/" target="_blank" rel="noreferrer">Weather data by Open-Meteo.com</a>{" "}
                 (<a className="underline" href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noreferrer">CC BY 4.0</a>) ·{" "}
-                {STATUS_HI[r.sources.weather.status] ?? r.sources.weather.status} · {hiTime(r.sources.weather.fetched_at)}
+                {status(t, r.sources.weather.status)} · {fmtTime(r.sources.weather.fetched_at, locale)}
               </li>
             )}
-            <li>सड़क की दूरी: {r.sources.routing}</li>
+            <li>
+              {t("s_roads")}: {r.sources.routing}
+            </li>
           </ul>
         </section>
       )}

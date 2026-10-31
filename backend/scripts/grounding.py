@@ -46,7 +46,7 @@ QUESTIONS = [
 async def one(q: str) -> dict[str, object]:
     t0 = time.monotonic()
     final: dict[str, object] = {}
-    async for line in run_agent(AskRequest(text=q)):
+    async for line in run_agent(AskRequest(text=q, lang="hi")):
         ev = json.loads(line.removeprefix("data: "))
         if ev["event"] == "final":
             final = ev

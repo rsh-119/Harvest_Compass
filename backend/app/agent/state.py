@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 from app.config import settings
 from app.data.cache import Sourced
+from app.languages import LangCode
 from app.scoring.audit_rules import Finding
 from app.tools.geocode import Place
 from app.tools.mandi import PriceRow
@@ -52,7 +53,8 @@ class AskRequest(BaseModel):
     place: Place | None = None  # village the farmer confirmed
     params: Params = Params()
     faults: list[str] = []
-    speak: bool = False  # also send the reply as Hindi audio
+    speak: bool = False  # also send the reply as audio (if the language has a voice)
+    lang: LangCode = "en"  # language of questions, answer and voice
 
 
 class Mandi(BaseModel):

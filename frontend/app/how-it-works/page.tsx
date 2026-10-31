@@ -7,7 +7,7 @@ const LOOP = [
   {
     name: "Understand",
     hi: "समझना",
-    body: "A language model turns Hindi or Hinglish into a strict form: crop, quantity, village, harvest window, vehicle rate. Sacks need a stated weight. If the village matches two places, or a value is missing, it asks one short question.",
+    body: "A language model turns the question, in English, Hindi or any of 21 other Indian languages, into a strict form: crop, quantity, village, harvest window, vehicle rate. Sacks need a stated weight. If the village matches two places, or a value is missing, it asks one short question.",
   },
   {
     name: "Plan",
@@ -37,7 +37,7 @@ const LOOP = [
   {
     name: "Explain",
     hi: "जवाब",
-    body: "The model writes two or three Hindi sentences from the computed facts only. A checker rejects any number or mandi name not in the facts, retries once, then falls back to a fixed template. Sarvam reads it aloud.",
+    body: "The model writes two or three sentences in the farmer's language from the computed facts only. A checker rejects any number or mandi name not in the facts, retries once, then falls back to a fixed template. Sarvam reads it aloud.",
   },
 ];
 
@@ -77,8 +77,8 @@ export default function HowItWorks() {
         <div>
           <h2 className="font-display text-4xl font-bold">Audit rules</h2>
           <p className="mt-3 text-lg text-ink-700">
-            A rejected mandi is never silently dropped. The farmer sees it under “छोड़ी गई मंडियाँ” with the reason in
-            Hindi.
+            A rejected mandi is never silently dropped. The farmer sees it under “Mandis left out” with the
+            reason.
           </p>
         </div>
         <table className="glass w-full overflow-hidden text-left">
@@ -105,8 +105,8 @@ export default function HowItWorks() {
         <div>
           <h2 className="font-display text-4xl font-bold">Voice</h2>
           <p className="mt-3 text-lg text-ink-700">
-            Sarvam speech-to-text turns the recording into Hindi text, which lands in the box so the farmer can fix a
-            misheard word. The reply is spoken by Sarvam text-to-speech. If the mic is blocked or speech fails, typing
+            Sarvam speech-to-text turns the recording into text in the chosen language (all 22 scheduled languages and English), which lands in the box so the farmer can fix a
+            misheard word. The reply is spoken by Sarvam text-to-speech in the 9 languages it has voices for; the rest get text. If the mic is blocked or speech fails, typing
             and reading still work.
           </p>
         </div>

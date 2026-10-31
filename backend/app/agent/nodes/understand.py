@@ -16,6 +16,7 @@ from app.clock import today_ist
 from app.config import settings
 from app.data.synonyms import normalize_crop
 from app.faults import clean
+from app.languages import localise
 from app.llm import chat
 from app.tools.geocode import Place, search, search_settlements
 from app.tools.routing import haversine_km
@@ -68,10 +69,12 @@ SCHEMA = {
 
 LARGE_QTY_Q = 2000  # 200 tonnes: far above a typical MP farm's harvest, worth a check
 
-PROMPT = """You extract a farmer's request (Hindi, Hinglish or English) into the set_intent tool.
+PROMPT = """You extract a farmer's request into the set_intent tool. It may be in English, Hindi,
+Hinglish or any Indian language, in any script. Put the crop word as the farmer said it in crop_word.
 Today is {today}. Convert relative dates (aaj, kal, parson, agle hafte, 5 din baad) to ISO dates.
-Number words count: "chalis" = 40. "bori"/"bora" = unit bori. Transliterate the village to Latin
-using its usual English spelling where you know it (महू = Mhow, खाचरौद = Khachrod).
+Number words and native-script digits count: "chalis" = 40. "bori"/"bora"/sack = unit bori.
+Transliterate the village to Latin using its usual English spelling where you know it
+(महू = Mhow, खाचरौद = Khachrod).
 Only fill what the farmer actually said; use null otherwise. Never guess."""
 
 
@@ -191,12 +194,15 @@ async def match_village(
     return None, [p for s, p in scored[:3] if s >= 60]
 
 
-def _ask(question_hi: str, question_en: str, intent: Intent, **extra: Any) -> dict[str, Any]:
+async def _ask(
+    question_hi: str, question_en: str, intent: Intent, lang: str, **extra: Any
+) -> dict[str, Any]:
     emit("clarify", question_en, question_hi)
     return {
         "clarify": {
             "hi": question_hi,
             "en": question_en,
+            "text": await localise(question_en, question_hi, lang),
             "intent": intent.model_dump(mode="json"),
             **extra,
         }
@@ -215,26 +221,39 @@ async def understand(state: AgentState) -> dict[str, Any]:
     crops_hi = "सोयाबीन या प्याज़"
     if intent.crop is None:
         if intent.crop_word:
-            return _ask(
+            return await _ask(
                 f"माफ़ कीजिए, अभी हम सिर्फ़ {crops_hi} के लिए सलाह देते हैं।",
-                f"Sorry, '{intent.crop_word}' isn't supported yet. Supported: {settings.crops}",
+                f"Sorry, '{intent.crop_word}' isn't covered yet. Right now we only advise on soybean and onion.",
                 intent,
+                req.lang,
                 unsupported=True,
             )
-        return _ask(f"कौन सी फसल बेचनी है — {crops_hi}?", "Which crop?", intent)
+        return await _ask(
+            f"कौन सी फसल बेचनी है — {crops_hi}?",
+            "Which crop are you selling: soybean or onion?",
+            intent,
+            req.lang,
+        )
     qty = to_quintals(intent, req.params.bori_kg)
     if qty is None:
         if intent.unit == "bori" and intent.quantity:
-            return _ask(
-                "एक बोरी में कितने किलो माल है?", "How many kg in one bori?", intent, needs="bori_kg"
+            return await _ask(
+                "एक बोरी में कितने किलो माल है?",
+                "How many kg are in one sack?",
+                intent,
+                req.lang,
+                needs="bori_kg",
             )
-        return _ask("कितना माल है? (क्विंटल में)", "How much (quintals)?", intent)
+        return await _ask(
+            "कितना माल है? (क्विंटल में)", "How much do you have, in quintals?", intent, req.lang
+        )
     if qty > LARGE_QTY_Q and not req.params.qty_confirmed:
         # Often "kilo" heard as "quintal". Confirm instead of planning 400 truck trips.
-        return _ask(
+        return await _ask(
             f"क्या सच में {qty:g} क्विंटल माल है? सही है तो 'हाँ' दबाएँ, नहीं तो सही मात्रा बताएँ।",
-            f"Really {qty:g} quintals? Confirm or correct.",
+            f"Do you really have {qty:g} quintals? Tap 'Yes' if that's right, or tell me the correct amount.",
             intent,
+            req.lang,
             needs="confirm_qty",
         )
     place: Place | None = req.place
@@ -243,23 +262,25 @@ async def understand(state: AgentState) -> dict[str, Any]:
         intent = intent.model_copy(update={"village": intent.district})
     if place is None:
         if not intent.village:
-            return _ask("आपका गाँव कौन सा है?", "Which village?", intent)
+            return await _ask("आपका गाँव कौन सा है?", "Which village are you in?", intent, req.lang)
         place, options = await match_village(
             intent.village, intent.district, intent.village_as_said
         )
         if place is None and options:
             o = options[0]
-            return _ask(
+            return await _ask(
                 f"क्या आपका गाँव {o.name} है? ({o.display_name})",
-                f"Is your village {o.name}?",
+                f"Is your village {o.name}? ({o.display_name})",
                 intent,
+                req.lang,
                 options=[p.model_dump() for p in options],
             )
         if place is None:
-            return _ask(
+            return await _ask(
                 "आपका गाँव नहीं मिला। गाँव और ज़िले का नाम बताइए।",
-                "Village not found. Please say village and district.",
+                "I couldn't find your village. Please tell me the village and the district.",
                 intent,
+                req.lang,
             )
         emit("understand", f"Village matched: {place.display_name}", f"गाँव मिला: {place.name}")
     # Edit boxes win over words. Neither given -> ask; we never assume a hire rate.
@@ -269,16 +290,19 @@ async def understand(state: AgentState) -> dict[str, Any]:
         q_hi, q_en = {
             (True, True): (
                 "गाड़ी का किराया कितने रुपये प्रति किलोमीटर है, और एक चक्कर में कितने क्विंटल आता है?",
-                "Vehicle hire in ₹ per km, and how many quintals per trip?",
+                "What does your vehicle cost per km in rupees, and how many quintals does one trip carry?",
             ),
             (True, False): (
                 "गाड़ी का किराया कितने रुपये प्रति किलोमीटर है?",
-                "Vehicle hire in ₹ per km?",
+                "What does your vehicle cost per km, in rupees?",
             ),
-            (False, True): ("एक चक्कर में गाड़ी में कितने क्विंटल आता है?", "Quintals per trip?"),
+            (False, True): (
+                "एक चक्कर में गाड़ी में कितने क्विंटल आता है?",
+                "How many quintals does one trip carry?",
+            ),
         }[(rate is None, cap is None)]
         # The confirmed place goes back with the question, so it isn't matched again.
-        return _ask(q_hi, q_en, intent, needs="vehicle", place=place.model_dump())
+        return await _ask(q_hi, q_en, intent, req.lang, needs="vehicle", place=place.model_dump())
     params = req.params.model_copy(update={"rate_per_km": rate, "capacity_q": cap})
     return {
         "request": req.model_copy(update={"params": params}),

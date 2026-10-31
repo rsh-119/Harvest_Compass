@@ -82,3 +82,29 @@ def test_town_matches_its_tahsil_name_but_villages_do_not() -> None:
     village = town.model_copy(update={"name": "Kodariya", "kind": "village"})
     assert _score("Mhow", town) == 100
     assert _score("Mhow", village) < 60
+
+
+def test_number_check_reads_every_indian_script() -> None:
+    allowed = allowed_numbers({"net": 6900, "total": 276000})
+    assert invented_numbers("৬৯০০ টাকা, মোট ২৭৬০০০", allowed) == []  # Bengali digits
+    assert invented_numbers("௬௯௦௦ ரூபாய்", allowed) == []  # Tamil digits
+    assert invented_numbers("৭০০০ টাকা", allowed) == ["৭০০০"]  # an invented price is still caught
+
+
+def test_english_and_hindi_need_no_translation() -> None:
+    import asyncio
+
+    from app.languages import LANGS, localise
+
+    assert asyncio.run(localise("Which village?", "आपका गाँव?", "en")) == "Which village?"
+    assert asyncio.run(localise("Which village?", "आपका गाँव?", "hi")) == "आपका गाँव?"
+    assert len(LANGS) == 23  # English + the 22 scheduled languages
+
+
+def test_translation_must_keep_numbers() -> None:
+    from app.languages import numbers_kept
+
+    assert numbers_kept("Do you really have 50000 quintals?", "क्या सच में 50000 क्विंटल?")
+    assert not numbers_kept("Do you really have 50000 quintals?", "क्या सच में 5000 क्विंटल?")
+    assert numbers_kept("How many quintals does one trip carry?", "1 চক্করে কত কুইন্টাল?")
+    assert not numbers_kept("How many quintals?", "40 কুইন্টাল?")

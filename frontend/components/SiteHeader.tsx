@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import { LanguagePicker } from "@/lib/i18n";
 import { Compass, NAV } from "./brand";
 
 
@@ -34,8 +35,11 @@ export default function SiteHeader() {
             </li>
           ))}
         </ul>
-        <Link href="/ask" className="btn-primary ml-auto px-4 py-2 text-sm whitespace-nowrap md:ml-2" onClick={() => setOpen(false)}>
-          पूछें<span className="hidden sm:inline"> · Ask</span>
+        <div className="ml-auto hidden sm:block md:ml-2">
+          <LanguagePicker compact />
+        </div>
+        <Link href="/ask" className="btn-primary ml-auto px-4 py-2 text-sm whitespace-nowrap sm:ml-0" onClick={() => setOpen(false)}>
+          Ask
         </Link>
         <button
           className="rounded-full p-2 text-ink-800 hover:bg-white/60 md:hidden"
@@ -51,6 +55,9 @@ export default function SiteHeader() {
       </nav>
       {open && (
         <ul id="mobile-nav" className="glass mx-auto mt-2 max-w-6xl space-y-1 p-2 md:hidden">
+          <li className="px-4 py-2 sm:hidden">
+            <LanguagePicker compact />
+          </li>
           {NAV.map((n) => (
             <li key={n.href}>
               <Link

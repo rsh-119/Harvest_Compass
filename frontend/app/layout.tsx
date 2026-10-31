@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Baloo_2, Mukta } from "next/font/google";
 import SiteFooter from "@/components/SiteFooter";
 import SiteHeader from "@/components/SiteHeader";
+import { LangProvider } from "@/lib/i18n";
 import "./globals.css";
 
 // Mukta covers Devanagari and Latin, so Hindi and numbers share one typeface.
@@ -20,18 +21,20 @@ const baloo = Baloo_2({
 export const metadata: Metadata = {
   title: { default: "Harvest Compass — कौन सी मंडी, कौन सा दिन", template: "%s · Harvest Compass" },
   description:
-    "A Hindi voice agent for soybean and onion farmers in Madhya Pradesh: the mandi that pays most after transport, and dry days to harvest. Live public data, checked and shown.",
+    "A voice agent in English and 22 Indian languages for soybean and onion farmers in Madhya Pradesh: the mandi that pays most after transport, and dry days to harvest. Live public data, checked and shown.",
 };
 
 export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#eef5fc" };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="hi">
+    <html lang="en">
       <body className={`${mukta.variable} ${baloo.variable} flex flex-col font-sans antialiased`}>
-        <SiteHeader />
-        <div className="flex-1">{children}</div>
-        <SiteFooter />
+        <LangProvider>
+          <SiteHeader />
+          <div className="flex-1">{children}</div>
+          <SiteFooter />
+        </LangProvider>
       </body>
     </html>
   );

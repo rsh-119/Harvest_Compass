@@ -9,7 +9,7 @@ const STEPS = [
   { hi: "डेटा जाँचा", en: "Rejects stale, odd and mismatched prices" },
   { hi: "ज़रूरत हो तो रास्ता बदला", en: "Repairs the plan if a source fails" },
   { hi: "खर्च काटकर हिसाब", en: "Ranks mandis by net ₹ per quintal" },
-  { hi: "हिंदी में जवाब, आवाज़ में", en: "Answers in spoken Hindi" },
+  { hi: "आपकी भाषा में जवाब, आवाज़ में", en: "Answers in the farmer's language, spoken" },
 ];
 
 const GETS = [
@@ -53,11 +53,11 @@ export default function Home() {
           </h1>
           <p className="mt-6 max-w-xl text-xl leading-relaxed text-ink-700">
             Harvest Compass tells a soybean or onion farmer which mandi pays the most once transport is paid for, and
-            which days are dry enough to harvest. Ask in Hindi, by voice or text.
+            which days are dry enough to harvest. Ask in English, Hindi or 21 other Indian languages, by voice or text.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Link href="/ask" className="btn-primary px-7 py-3.5 text-lg">
-              हिंदी में पूछें
+              Ask a question
             </Link>
             <Link href="/how-it-works" className="btn-ghost px-7 py-3.5 text-lg">
               See how it works
@@ -172,11 +172,11 @@ export default function Home() {
       <section className="mx-auto max-w-6xl py-16">
         <div className="glass-strong flex flex-col items-start gap-6 p-8 sm:flex-row sm:items-center sm:justify-between sm:p-12">
           <div>
-            <h2 className="font-display text-4xl font-bold">अपनी फसल के बारे में पूछिए</h2>
-            <p className="mt-2 text-lg text-ink-700">Tap the mic and speak, or type. The answer comes back in Hindi.</p>
+            <h2 className="font-display text-4xl font-bold">Ask about your crop</h2>
+            <p className="mt-2 text-lg text-ink-700">Pick your language, then tap the mic and speak, or type. The answer comes back in the same language.</p>
           </div>
           <Link href="/ask" className="btn-primary shrink-0 px-8 py-4 text-lg">
-            पूछें
+            Ask now
           </Link>
         </div>
       </section>

@@ -36,7 +36,7 @@ export default function MandiMap({ origin, mandis }: { origin: Place; mandis: Ma
       if (m.lat == null || m.lon == null) return;
       pts.push([m.lat, m.lon]);
       L.marker([m.lat, m.lon], { icon: pin(String(i + 1), i === 0 ? "#15803d" : "#a16207") })
-        .bindPopup(`<b>${i + 1}. ${esc(m.market)}</b><br>₹${m.net_per_quintal}/क्विंटल शुद्ध<br>${m.road_km} km`)
+        .bindPopup(`<b>${i + 1}. ${esc(m.market)}</b><br>₹${m.net_per_quintal}/q net<br>${m.road_km} km`)
         .addTo(map);
     });
     map.fitBounds(L.latLngBounds(pts), { padding: [24, 24], maxZoom: 11 });

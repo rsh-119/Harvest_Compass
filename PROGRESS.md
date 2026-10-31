@@ -313,3 +313,25 @@ Playwright on localhost, 390×844:
   - Every number on the marketing pages is either read live from `/backtest` and `/stats`, or is a dated measurement from this log. No testimonials, logos or invented figures.
   - The team section on `/about` appears once `TEAM` in `app/about/page.tsx` is filled in.
 - **Check:** tsc, eslint and the production build pass. Visually checked with Playwright at 1366 px and 390 px: home, results (live backtest), and ask with a real onion question end to end (answer, map, table, costs).
+
+## Loop: language choice (31 Oct)
+- **Goal (team request):** farmers pick their language from all Indian languages; default English.
+- **Verified from Sarvam docs (31 Oct):**
+  - saaras:v4 speech-to-text accepts all 22 scheduled languages plus English (`as, bn, brx, doi, gu, hi, kn, kok, ks, mai, ml, mni, mr, ne, od, pa, sa, sat, sd, ta, te, ur` + `en`).
+  - bulbul:v4-flash has voices only for en, hi, bn, gu, kn, mr, pa, ta, te. Malayalam and Odia are v3-only, so they get no spoken reply here.
+  - Voice IDs come from Sarvam's Voices page.
+- **Build:**
+  - `app/languages.py` lists the 23 languages, their STT code and voice.
+  - `AskRequest.lang` (default `en`).
+  - Clarifying questions are hand-written in English and Hindi; other languages are translated by the LLM and rejected if any number changes (small counting numbers allowed).
+  - The answer prompt takes the language. The number checker now reads digits in every Indian script.
+  - The template fallback is Hindi or English (then translated).
+  - Speech-to-text gets the language code, and the spoken reply uses that language's voice.
+  - Frontend: `lib/i18n.tsx` (language list, English and Hindi labels, a picker in the header and on the ask page, saved in the browser). The marketing copy no longer says "Hindi only".
+- **Check:** ruff, mypy, 42 tests (new: Bengali and Tamil digits in the number check, translation number guard, 23 languages), tsc, eslint, build.
+- **Verify (live):**
+  - Tamil question → Tamil answer, 0 invented numbers.
+  - Marathi question in the browser → Marathi answer (dates and confidence in Marathi), spoken reply played (Sarvam TTS 200).
+  - English question → English vehicle-rate question.
+  - Tamil and English voices return audio.
+- **Limits:** page labels for languages other than English and Hindi fall back to English. Language quality in low-resource languages (e.g. Santali, Bodo) hasn't been checked by a native speaker.

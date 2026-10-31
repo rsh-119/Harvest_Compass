@@ -6,9 +6,9 @@ import logging
 import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import Depends, FastAPI, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
@@ -21,6 +21,7 @@ from app.data.cache import close_pool
 from app.faults import FAULTS
 from app.health import status as health_status
 from app.http import client
+from app.languages import LANGS, LangCode
 from app.ratelimit import limit
 from app.tools import voice
 
@@ -96,9 +97,9 @@ async def run_agent(req: AskRequest) -> AsyncIterator[str]:
     )
     # Speak only what the agent itself said (no public TTS endpoint to drain credits).
     # Sent after "final", so the farmer reads the text while the audio is made.
-    spoken = final.get("answer") or (final.get("clarify") or {}).get("hi")
-    if spoken and req.speak:
-        audio = await voice.speak(spoken)
+    spoken = final.get("answer") or (final.get("clarify") or {}).get("text")
+    if spoken and req.speak and LANGS[req.lang].voice:
+        audio = await voice.speak(spoken, req.lang)
         if audio.data:
             yield _sse({"event": "audio", "wav_b64": base64.b64encode(audio.data).decode()})
         else:
@@ -118,15 +119,18 @@ async def ask(req: AskRequest) -> StreamingResponse:
 
 
 @app.post("/transcribe", dependencies=[Depends(limit)])
-async def transcribe(audio: UploadFile) -> dict[str, str]:
-    """Hindi speech -> text. The UI puts the text in the box, so the farmer can fix it."""
+async def transcribe(audio: UploadFile, lang: Annotated[LangCode, Form()] = "en") -> dict[str, str]:
+    """Speech -> text in the chosen language. The UI puts the text in the box to fix."""
     data = await audio.read()
     if not data:
         raise HTTPException(400, "empty audio")
     if len(data) > 5_000_000:  # Sarvam's REST endpoint is for clips under 30 s
         raise HTTPException(413, "recording too long")
     res = await voice.transcribe(
-        data, audio.filename or "audio.webm", audio.content_type or "application/octet-stream"
+        data,
+        audio.filename or "audio.webm",
+        audio.content_type or "application/octet-stream",
+        lang,
     )
     if res.data is None:
         raise HTTPException(502, f"speech-to-text failed: {res.error}")
@@ -143,3 +147,4 @@ async def backtest_results() -> list[dict[str, Any]]:
 async def stats() -> dict[str, Any]:
     """Real per-request numbers from request_log (last 7 days): p50/p95 time, fallback rate."""
     return await request_log.stats()
+

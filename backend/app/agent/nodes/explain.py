@@ -1,4 +1,4 @@
-"""Short Hindi answer written by the LLM ONLY from computed facts, then checked: every number
+"""Short answer in the farmer's language, written by the LLM ONLY from computed facts, then checked: every number
 in the text must exist in the facts. One retry, then a fixed template. Invented numbers are
 counted and logged."""
 
@@ -10,11 +10,12 @@ from typing import Any
 
 from app.agent.state import AgentState
 from app.agent.trace import emit
+from app.languages import LANGS, localise
 from app.llm import chat
 
 log = logging.getLogger("explain")
-DEVANAGARI = str.maketrans("०१२३४५६७८९", "0123456789")
-NUM = re.compile(r"[0-9०-९][0-9०-९,]*(?:\.[0-9०-९]+)?")
+# \d matches digits in every Indian script, and float() reads them, so the check works in any language.
+NUM = re.compile(r"\d[\d,]*(?:\.\d+)?")
 MONTHS_HI = [
     "जनवरी",
     "फ़रवरी",
@@ -30,13 +31,15 @@ MONTHS_HI = [
     "दिसंबर",
 ]
 
-PROMPT = """You are speaking to a farmer in simple Hindi (Devanagari). Use ONLY the facts in the JSON.
+PROMPT = """You are speaking to a farmer in simple {language}. Use ONLY the facts in the JSON.
 Max 60 words (about 20 seconds spoken). Say: best mandi, net rupees per quintal and total, safest
 harvest days if given, confidence. Write every number with digits, copied exactly from the facts.
 Do not add any other number. If "wait" is present, say it is a trend, not a forecast.
-The net figure is the price after transport and charges, NOT profit: say "खर्च काटकर आपके हाथ में"
-or "शुद्ध भाव". Never say "लाभ" or "मुनाफ़ा" (cultivation cost is not subtracted).
+The net figure is the money in hand after transport and charges, NOT profit (cultivation cost is
+not subtracted), so never call it profit. Write month names and the confidence word in the
+farmer's language too.{extra}
 Write mandi names exactly as given in the facts, in Latin letters. Never translate them."""
+HINDI_EXTRA = """ Say "खर्च काटकर आपके हाथ में" or "शुद्ध भाव". Never say "लाभ" or "मुनाफ़ा"."""
 
 
 def hi_date(iso: str) -> str:
@@ -44,9 +47,19 @@ def hi_date(iso: str) -> str:
     return f"{d.day} {MONTHS_HI[d.month - 1]}"
 
 
-def facts_for(result: dict[str, Any]) -> dict[str, Any]:
+def en_date(iso: str) -> str:
+    return date.fromisoformat(iso).strftime("%d %b").lstrip("0")
+
+
+def facts_for(result: dict[str, Any], lang: str = "hi") -> dict[str, Any]:
     """The small set of facts the LLM may use (never raw payloads)."""
     b = result["best"]
+    day = hi_date if lang == "hi" else en_date
+    conf = (
+        {"high": "ऊँचा", "medium": "मध्यम", "low": "कम"}
+        if lang == "hi"
+        else {"high": "high", "medium": "medium", "low": "low"}
+    )
     f: dict[str, Any] = {
         "crop": result["crop"],
         "quantity_quintal": result["quantity_q"],
@@ -54,11 +67,11 @@ def facts_for(result: dict[str, Any]) -> dict[str, Any]:
         "road_km": b["road_km"],
         "modal_price_today": b["modal_price"],
         "price_used_7day_median": b["price_used"],
-        "price_date": hi_date(b["arrival_date"]),
+        "price_date": day(b["arrival_date"]),
         "net_per_quintal": b["net_per_quintal"],
         "net_total": b["net_total"],
         "transport_total": b["transport_total"],
-        "confidence": {"high": "ऊँचा", "medium": "मध्यम", "low": "कम"}[result["confidence"]],
+        "confidence": conf[result["confidence"]],
     }
     if r := result.get("runner_up"):
         f["runner_up"] = r["market"]
@@ -68,7 +81,7 @@ def facts_for(result: dict[str, Any]) -> dict[str, Any]:
         f["farther_mandi_extra_per_quintal"] = np["extra_per_quintal"]
         f["farther_mandi_extra_km"] = np["extra_km"]
     if days := result.get("harvest_days"):
-        f["safest_days"] = [hi_date(d["day"]) for d in days[:2]]
+        f["safest_days"] = [day(d["day"]) for d in days[:2]]
     if w := result.get("wait"):
         f["wait_days"] = w["days"]
         if w["trend_change_per_quintal"] is not None:
@@ -84,7 +97,7 @@ def allowed_numbers(facts: Any) -> set[float]:
     if isinstance(facts, int | float):
         out |= {float(facts), float(round(facts)), abs(float(facts))}
     elif isinstance(facts, str):
-        out |= {float(n.replace(",", "")) for n in NUM.findall(facts.translate(DEVANAGARI))}
+        out |= {float(n.replace(",", "")) for n in NUM.findall(facts)}
     elif isinstance(facts, dict):
         for v in facts.values():
             out |= allowed_numbers(v)
@@ -96,7 +109,7 @@ def allowed_numbers(facts: Any) -> set[float]:
 
 def invented_numbers(text: str, allowed: set[float]) -> list[str]:
     bad = []
-    for n in NUM.findall(text.translate(DEVANAGARI)):
+    for n in NUM.findall(text):
         v = float(n.replace(",", "").rstrip("."))
         if not any(abs(v - a) <= 0.5 for a in allowed):
             bad.append(n)
@@ -113,16 +126,33 @@ def template(f: dict[str, Any]) -> str:
     return s + f" भरोसा: {f['confidence']}।"
 
 
+def template_en(f: dict[str, Any]) -> str:
+    s = (
+        f"{f['best_mandi']} is the best mandi. After transport you get {f['net_per_quintal']} rupees "
+        f"per quintal, {f['net_total']} rupees in all."
+    )
+    if "safest_days" in f:
+        s += f" Safest days to harvest: {', '.join(f['safest_days'])}."
+    return s + f" Confidence: {f['confidence']}."
+
+
 async def explain(state: AgentState) -> dict[str, Any]:
     result = state["result"]
+    lang = state["request"].lang
     if result.get("best") is None:
-        answer = "माफ़ कीजिए, अभी भरोसेमंद भाव वाली कोई मंडी नहीं मिली। थोड़ी देर बाद फिर पूछिए।"
+        answer = await localise(
+            "Sorry, no mandi with trustworthy prices was found right now. Please ask again a little later.",
+            "माफ़ कीजिए, अभी भरोसेमंद भाव वाली कोई मंडी नहीं मिली। थोड़ी देर बाद फिर पूछिए।",
+            lang,
+        )
         emit("explain", "No recommendation possible", answer, invented=0)
         return {"answer": answer, "result": {**result, "invented_numbers": 0}}
-    facts = facts_for(result)
+    facts = facts_for(result, lang)
+    language = f"{LANGS[lang].english} ({LANGS[lang].native}), in its usual script"
+    prompt = PROMPT.format(language=language, extra=HINDI_EXTRA if lang == "hi" else "")
     allowed = allowed_numbers(facts)
     messages = [
-        {"role": "system", "content": PROMPT},
+        {"role": "system", "content": prompt},
         {"role": "user", "content": json.dumps(facts, ensure_ascii=False)},
     ]
     invented_total = 0
@@ -163,7 +193,7 @@ async def explain(state: AgentState) -> dict[str, Any]:
         )
         messages += [{"role": "assistant", "content": text}, {"role": "user", "content": fix}]
     if not answer:
-        answer = template(facts)
+        answer = template(facts) if lang == "hi" else await localise(template_en(facts), "", lang)
     log.info("invented_numbers=%d", invented_total)
     emit(
         "explain",

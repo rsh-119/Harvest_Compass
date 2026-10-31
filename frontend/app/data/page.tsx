@@ -36,7 +36,7 @@ const SOURCES = [
   {
     name: "Sarvam AI",
     href: "https://www.sarvam.ai",
-    use: "Hindi speech to text (saaras:v4) and text to speech (bulbul:v4-flash)",
+    use: "Speech to text in 22 Indian languages and English (saaras:v4); spoken replies in 9 (bulbul:v4-flash)",
     licence: "API terms",
   },
   {

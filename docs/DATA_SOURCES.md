@@ -97,3 +97,8 @@ data.gov.in spells some mandi towns differently from OpenStreetMap (Haatpipliya/
 ## OpenRouter models tested (31 Oct 2026, from GET /api/v1/models)
 - `deepseek/deepseek-v4.1-flash` (demo), `openai/gpt-5.6-terra`, `google/gemini-3.8-flash`: forced `tool_choice` works.
 - `anthropic/claude-sonnet-5.5`: 400 "tool_choice: type tool and any are not supported for this model" (Bedrock / Claude Platform on AWS).
+
+## Sarvam languages (31 Oct 2026, docs.sarvam.ai)
+- STT `language_code` enum: `unknown, hi-IN, bn-IN, kn-IN, ml-IN, mr-IN, od-IN, pa-IN, ta-IN, te-IN, en-IN, gu-IN, as-IN, ur-IN, ne-IN, kok-IN, ks-IN, sd-IN, sa-IN, sat-IN, mni-IN, brx-IN, mai-IN, doi-IN`. saaras:v4 is described as "Global + Indian English and 22 Indic languages".
+- TTS `language_code` enum: `bn-IN, en-IN, gu-IN, hi-IN, kn-IN, ml-IN, mr-IN, od-IN, pa-IN, ta-IN, te-IN`. v4-flash voices exist for hi, en, bn, gu, kn, mr, pa, ta, te. ml and od are v3-only.
+- Voices used: `dev_en_conversational`, `aditya_hi_conversational`, `roopa_bn_conversational`, `ishita_mr_conversational`, `kavitha_te_conversation`, `gokul_ta_narration` (no Tamil conversational voice), `pooja_gu_conversational`, `chaitra_kn_conversation`, `anand_pa_conversation`. Tested live: ta, en, mr return audio.

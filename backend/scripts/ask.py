@@ -14,7 +14,7 @@ from app.main import run_agent
 
 
 async def main(text: str, faults: list[str]) -> None:
-    async for line in run_agent(AskRequest(text=text, faults=faults)):
+    async for line in run_agent(AskRequest(text=text, faults=faults, lang="hi")):
         ev = json.loads(line.removeprefix("data: "))
         if ev["event"] == "final":
             print("\n=== ANSWER:", ev.get("answer") or ev.get("clarify"))

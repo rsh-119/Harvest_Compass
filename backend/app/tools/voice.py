@@ -1,4 +1,4 @@
-"""Hindi speech in/out via Sarvam (endpoints and models verified from docs.sarvam.ai in M0).
+"""Speech in/out via Sarvam, in the farmer's chosen language (endpoints and models verified from docs.sarvam.ai in M0).
 Free credits are limited, so TTS audio is cached by its exact text."""
 
 import base64
@@ -8,10 +8,11 @@ from datetime import UTC, datetime
 from app.config import settings
 from app.data.cache import Sourced, cached
 from app.http import request_json
+from app.languages import LANGS
 
 STT_URL = "https://api.sarvam.ai/speech-to-text"
 TTS_URL = "https://api.sarvam.ai/text-to-speech"
-TTS_MODEL, TTS_SPEAKER = "bulbul:v4-flash", "aditya_hi_conversational"
+TTS_MODEL = "bulbul:v4-flash"
 STT_MODEL = "saaras:v4"
 
 
@@ -19,7 +20,7 @@ def _headers() -> dict[str, str]:
     return {"api-subscription-key": settings.sarvam_api_key}
 
 
-async def transcribe(audio: bytes, filename: str, mime: str) -> Sourced[str]:
+async def transcribe(audio: bytes, filename: str, mime: str, lang: str = "en") -> Sourced[str]:
     """Never cached: every recording is new."""
     try:
         body = await request_json(
@@ -27,7 +28,7 @@ async def transcribe(audio: bytes, filename: str, mime: str) -> Sourced[str]:
             STT_URL,
             headers=_headers(),
             timeout=60,
-            data={"model": STT_MODEL, "mode": "transcribe", "language_code": "hi-IN"},
+            data={"model": STT_MODEL, "mode": "transcribe", "language_code": LANGS[lang].stt},
             files={"file": (filename, audio, mime)},
         )
         text = str(body.get("transcript", "")).strip()
@@ -44,9 +45,11 @@ async def transcribe(audio: bytes, filename: str, mime: str) -> Sourced[str]:
         )
 
 
-async def speak(text: str) -> Sourced[bytes]:
-    """Returns WAV bytes."""
-    digest = hashlib.sha256(f"{TTS_MODEL}:{TTS_SPEAKER}:{text}".encode()).hexdigest()
+async def speak(text: str, lang: str = "hi") -> Sourced[bytes]:
+    """Returns WAV bytes. Only for languages with a v4-flash voice (see app.languages)."""
+    speaker = LANGS[lang].voice
+    assert speaker, f"no voice for {lang}"
+    digest = hashlib.sha256(f"{TTS_MODEL}:{speaker}:{text}".encode()).hexdigest()
 
     async def fetch() -> str:
         body = await request_json(
@@ -56,9 +59,9 @@ async def speak(text: str) -> Sourced[bytes]:
             timeout=60,
             json={
                 "text": text,
-                "language_code": "hi-IN",
+                "language_code": LANGS[lang].stt,
                 "model": TTS_MODEL,
-                "speaker": TTS_SPEAKER,
+                "speaker": speaker,
             },
         )
         return str(body["audios"][0])  # base64 WAV

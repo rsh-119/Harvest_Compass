@@ -69,6 +69,7 @@ export type Result = {
 export type Clarify = {
   hi: string;
   en: string;
+  text: string; // the question in the farmer's chosen language
   intent: Record<string, unknown>;
   options?: Place[];
   place?: Place; // already-confirmed village, sent back with the answer
@@ -93,6 +94,7 @@ export type AskBody = {
   params?: Params;
   faults?: string[];
   speak?: boolean;
+  lang?: string;
 };
 
 export type Health = {
@@ -145,9 +147,10 @@ export async function ask(body: AskBody, onEvent: (e: TraceEvent | Final) => voi
   }
 }
 
-export async function transcribe(audio: Blob): Promise<string> {
+export async function transcribe(audio: Blob, lang: string): Promise<string> {
   const form = new FormData();
   form.append("audio", audio, "speech.webm");
+  form.append("lang", lang);
   const res = await fetch(`${API}/transcribe`, { method: "POST", body: form });
   if (!res.ok) throw new Error((await res.json().catch(() => null))?.detail ?? `error ${res.status}`);
   return (await res.json()).text;

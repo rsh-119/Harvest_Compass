@@ -27,7 +27,7 @@ export default function About() {
           phone call to a trader.
         </p>
         <p>
-          Harvest Compass brings that data to one question asked in Hindi, checks it before trusting it, and shows its
+          Harvest Compass brings that data to one question asked in the farmer&apos;s own language, checks it before trusting it, and shows its
           working. It covers soybean and onion around Indore, Ujjain and Dewas, where the data showed the most mandis
           reporting. Built for FORGE &apos;26.
         </p>
@@ -66,7 +66,7 @@ export default function About() {
           .
         </p>
         <Link href="/ask" className="btn-primary mt-8 px-7 py-3.5 text-lg">
-          हिंदी में पूछें
+          Ask a question
         </Link>
       </section>
     </main>
