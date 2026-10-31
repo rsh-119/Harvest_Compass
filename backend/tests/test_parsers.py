@@ -58,6 +58,13 @@ def test_mandi_rows_from_both_resources() -> None:
 def test_names() -> None:
     assert normalize_market("Ashta  APMC") == "ashta apmc"
     assert market_town("Mhow (Ambedkar Nagar) (F&V) APMC") == "Mhow"
+    assert market_town("PMY Bilaspur") == "Bilaspur"
+    assert market_town("SMY Chail Chowk") == "Chail Chowk"
+    assert market_town("Alacode  VFPCK Market") == "Alacode"
+    assert market_town("APMC/MAC Shopian") == "Shopian"
+    assert market_town("MAC F&V Market Narwal Jammu") == "Narwal Jammu"
+    assert market_town("Fruit and Vegetable Market Udhampur") == "Udhampur"
+    assert market_town("PMY Kangni Mandi") == "Kangni Mandi"  # 'Mandi' is a real district name
     assert normalize_crop("Pyaaz") == "Onion" and normalize_crop("सोयाबीन") == "Soyabean"
     assert normalize_crop("gehu") == "Wheat"  # wheat is covered now
 

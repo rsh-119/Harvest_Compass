@@ -53,7 +53,15 @@ def normalize_market(name: str) -> str:
     return re.sub(r"\s+", " ", name).strip().lower()
 
 
+# Market-type words around the town name, seen in the feed: 'PMY Bilaspur' (Himachal principal /
+# sub market yard), 'Adimali VFPCK Market' (Kerala), 'APMC/MAC Shopian', 'MAC F&V Market Narwal'.
+_NOT_TOWN = re.compile(
+    r"\(.*?\)|/|\b(?:APMC|PMY|SMY|VFPCK|MAC|Market Administrative Committee"
+    r"|Fruit and Vegetable|F&V|Market)\b",
+    re.IGNORECASE,
+)
+
+
 def market_town(name: str) -> str:
     """'Mhow (Ambedkar Nagar) (F&V) APMC' -> 'Mhow'. The searchable place name for geocoding."""
-    town = re.sub(r"\(.*?\)|\bAPMC\b", " ", name)
-    return re.sub(r"\s+", " ", town).strip()
+    return re.sub(r"\s+", " ", _NOT_TOWN.sub(" ", name)).strip()
