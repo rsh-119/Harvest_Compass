@@ -7,6 +7,8 @@ Rain risk for one model on one day = the larger of
 A day's score = harvest-day risk + weight × next-day (transport) risk, worst model taken.
 Perishables (onion) weight the transport day fully, grains by half.
 A day is also uncertain if the transport day has no forecast.
+With only one model available, its call is used (dry or not) but the day is marked
+"one model only" and uncertain, which lowers confidence. With none, no day is scored.
 Models disagree on a day when one calls it dry and the other doesn't, or their risks differ by 0.3+.
 """
 
@@ -29,10 +31,11 @@ class Day:
 class DayScore:
     day: date
     score: float
-    both_dry: bool
+    dry: bool  # every available model calls it dry
     uncertain: bool
     reasons: list[str] = field(default_factory=list)
     transport_known: bool = True
+    one_model: bool = False
 
 
 def risk(d: Day) -> float | None:
@@ -92,16 +95,17 @@ def score_window(
             DayScore(
                 day,
                 max(per_model.values()),
-                all(dry) and len(today) >= 2,
+                all(dry),
                 uncertain,
                 reasons,
                 transport_known=not missing_next,
+                one_model=len(today) < 2,
             )
         )
         day += timedelta(days=1)
-    # Prefer days both models call dry, then confident days, then days whose transport-day
+    # Prefer days the models call dry, then confident days, then days whose transport-day
     # forecast exists (its unknown risk was counted as 0), then lowest risk, then earliest.
     scored.sort(
-        key=lambda s: (not s.both_dry, s.uncertain, not s.transport_known, round(s.score, 3), s.day)
+        key=lambda s: (not s.dry, s.uncertain, not s.transport_known, round(s.score, 3), s.day)
     )
     return scored, uncovered

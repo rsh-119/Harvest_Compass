@@ -168,7 +168,7 @@ def test_prefers_day_both_models_call_dry() -> None:
     # Day 1: both dry, transport day 2 forecast known. Day 3 is dry too, but its transport
     # day is beyond the forecast, so it must not win.
     assert best[0].day == D0 + timedelta(days=1)
-    assert best[0].both_dry and not best[0].uncertain
+    assert best[0].dry and not best[0].uncertain
     day3 = next(s for s in best if s.day == D0 + timedelta(days=3))
     assert day3.uncertain and "weather models disagree" not in day3.reasons
     assert uncovered == []
@@ -181,10 +181,11 @@ def test_model_disagreement_marks_uncertain() -> None:
     assert scored[0].uncertain and "disagree" in scored[0].reasons[0]
 
 
-def test_single_model_is_uncertain_and_days_beyond_forecast_listed() -> None:
+def test_single_model_is_used_but_uncertain_and_days_beyond_forecast_listed() -> None:
     a = days([(0, 5)])
     scored, uncovered = score_window({"a": a}, D0, D0 + timedelta(days=2), perishable=False)
-    assert scored[0].uncertain and not scored[0].both_dry
+    # The one model says dry, so the day is dry, but labelled one-model and uncertain.
+    assert scored[0].dry and scored[0].one_model and scored[0].uncertain
     assert "only one weather model available" in scored[0].reasons
     assert any("transport day" in r for r in scored[0].reasons)
     assert uncovered == [D0 + timedelta(days=1), D0 + timedelta(days=2)]
@@ -203,3 +204,54 @@ def test_unknown_transport_day_ranks_after_known_when_all_uncertain() -> None:
     a = days([(0, 20), (0, 10), (0, 0)])
     scored, _ = score_window({"a": a}, D0, D0 + timedelta(days=2), perishable=False)
     assert scored[-1].day == D0 + timedelta(days=2) and not scored[-1].transport_known
+
+
+# --- money card adds up (median of an even number of reports ends in .5) ---
+def test_card_adds_up_when_median_ends_in_half() -> None:
+    from app.agent.nodes.compute import compute_result
+    from app.agent.state import AskRequest, Intent, Mandi, Params
+    from app.tools.geocode import Place
+    from app.tools.mandi import PriceRow
+    from app.tools.routing import Route
+
+    def row(day: int, modal: float) -> PriceRow:
+        return PriceRow(
+            market="Sanwer APMC", district="Indore", commodity="Wheat", variety="Wheat",
+            grade="FAQ", arrival_date=D0 - timedelta(days=day), min_price=modal - 50,
+            max_price=modal + 50, modal_price=modal, source="history",
+        )  # fmt: skip
+
+    hist = [row(4, 3070), row(3, 3075), row(2, 3076), row(1, 3081)]  # median 3075.5
+    m = Mandi(
+        key="sanwer apmc|indore", market="Sanwer APMC", district="Indore", row=hist[-1],
+        location=Place(name="Sanwer", display_name="Sanwer", lat=22.97, lon=75.83),
+        route=Route(km=2.43, minutes=3), usable=True,
+    )  # fmt: skip
+    state = {
+        "intent": Intent(crop="Wheat"),
+        "request": AskRequest(text="x", params=Params(rate_per_km=25, capacity_q=30)),
+        "quantity_q": 30.0, "mandis": [m], "history": hist, "plan": [], "notes": [],
+        "radius_km": 150.0, "region": "Madhya Pradesh",
+    }  # fmt: skip
+    b = compute_result(state, D0)["best"]  # type: ignore[arg-type]
+    assert b["price_used"] == 3076  # 3075.5 rounded half up, once
+    assert b["road_km"] == 2.4
+    assert b["transport_total"] == 1 * 2 * 2.4 * 25  # 120, from the km shown on the card
+    sale = b["price_used"] * 30
+    assert b["net_total"] == sale - b["transport_total"] - b["mandi_charges"] == 92160
+
+
+def test_rupees_rounds_halves_up() -> None:
+    from app.scoring.net_profit import rupees
+
+    assert (rupees(3075.5), rupees(3076.5), rupees(3076.49)) == (3076, 3077, 3076)
+
+
+def test_wide_spread_and_one_model_lower_confidence() -> None:
+    from app.agent.nodes.compute import confidence
+
+    assert confidence(1, 5, True, False)[0] == "high"
+    level, why = confidence(1, 5, True, False, wide_spread=True)
+    assert level == "medium" and "wide price spread" in why[0]
+    level, why = confidence(1, 5, True, True, one_model=True)
+    assert level == "medium" and why == ["one weather model only"]

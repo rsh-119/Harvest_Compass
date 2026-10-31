@@ -3,6 +3,13 @@
 import math
 import statistics
 from dataclasses import dataclass
+from decimal import ROUND_HALF_UP, Decimal
+
+
+def rupees(x: float) -> int:
+    """Whole rupees, halves rounded up (3075.5 -> 3076), as a farmer would. Python's round()
+    rounds halves to even, which would turn 3076.5 into 3076."""
+    return int(Decimal(str(x)).quantize(Decimal(1), rounding=ROUND_HALF_UP))
 
 
 @dataclass(frozen=True)
@@ -27,15 +34,17 @@ class NetResult:
 def net_profit(price: float, road_km: float, c: Costs) -> NetResult:
     """trips = ceil(qty / capacity). Transport is a round trip: trips × 2 × km × rate.
     Mandi charges = price × qty × fee_rate + other charges × qty.
-    Net/q = price − (transport + charges) / qty."""
+    Each money line is rounded to whole rupees, and the net is computed from those rounded
+    lines, so the card a farmer sees adds up exactly: net = sale − transport − charges.
+    Net/q = net / qty. Callers pass the price already rounded (see compute.py)."""
     if c.quantity_q <= 0 or c.capacity_q <= 0:
         raise ValueError("quantity and vehicle capacity must be positive")
     if min(price, road_km, c.rate_per_km, c.fee_rate, c.other_per_q) < 0:
         raise ValueError("price, distance, rate and fee must not be negative")
     trips = math.ceil(c.quantity_q / c.capacity_q)
-    transport = trips * 2 * road_km * c.rate_per_km
-    charges = price * c.quantity_q * c.fee_rate + c.other_per_q * c.quantity_q
-    gross = price * c.quantity_q
+    transport = rupees(trips * 2 * road_km * c.rate_per_km)
+    charges = rupees(price * c.quantity_q * c.fee_rate + c.other_per_q * c.quantity_q)
+    gross = rupees(price * c.quantity_q)
     net_total = gross - transport - charges
     return NetResult(trips, transport, charges, gross, net_total, net_total / c.quantity_q)
 

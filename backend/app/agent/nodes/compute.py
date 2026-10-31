@@ -7,6 +7,7 @@ from app.agent.state import AgentState, Mandi
 from app.agent.trace import emit
 from app.clock import today_ist
 from app.data.crops import PERISHABLE
+from app.scoring import audit_rules as rules
 from app.scoring.harvest_window import Day, risk, score_window
 from app.scoring.net_profit import (
     Candidate,
@@ -15,6 +16,7 @@ from app.scoring.net_profit import (
     net_profit,
     rank,
     ranking_price,
+    rupees,
 )
 from app.scoring.trend import slope_per_day
 from app.tools.mandi import PriceRow
@@ -25,6 +27,10 @@ SELLER_FEE_RATE = 0.0
 # Judgement call, not data: if a farther mandi beats a nearer one by at most this much per
 # quintal, recommend the nearer one (less fuel risk, less time, price may move by arrival).
 NEAR_TIE_PER_Q = 50.0
+# Same threshold the understand step uses to double-check a quantity: this much arriving at one
+# mandi on one day can push its price down. data.gov.in gives no arrival volumes to judge by.
+# ponytail: fixed 2000 q for every mandi; scale by each mandi's usual arrivals if we get them.
+LARGE_SALE_Q = 2000
 
 
 def _series(history: list[PriceRow], m: Mandi, since: date) -> list[tuple[date, float]]:
@@ -40,7 +46,12 @@ def _series(history: list[PriceRow], m: Mandi, since: date) -> list[tuple[date, 
 
 
 def confidence(
-    top_age_days: int, usable: int, has_conservative: bool, day_uncertain: bool | None
+    top_age_days: int,
+    usable: int,
+    has_conservative: bool,
+    day_uncertain: bool | None,
+    wide_spread: bool = False,
+    one_model: bool = False,
 ) -> tuple[str, list[str]]:
     """Rule-based: count what's weak. 0 → high, 1 → medium, 2+ → low."""
     weak = []
@@ -50,8 +61,12 @@ def confidence(
         weak.append(f"only {usable} usable mandis to compare")
     if not has_conservative:
         weak.append("not enough recent history for a bad-day price")
-    if day_uncertain:
-        weak.append("weather models disagree or one is missing")
+    if wide_spread:
+        weak.append("wide price spread at this mandi (mixed-quality lots)")
+    if one_model:
+        weak.append("one weather model only")
+    elif day_uncertain:
+        weak.append("weather models disagree")
     level = "high" if not weak else "medium" if len(weak) == 1 else "low"
     return level, weak
 
@@ -69,35 +84,40 @@ def compute_result(state: AgentState, today: date) -> dict[str, Any]:
         week = dict(_series(history, m, today - timedelta(days=6)))
         if m.row.arrival_date >= today - timedelta(days=6):
             week[m.row.arrival_date] = m.row.modal_price  # today's report isn't in history yet
-        price = ranking_price(list(week.values()), m.row.modal_price)
-        res = net_profit(price, m.route.km, costs)
-        cp = conservative_price([v for _, v in _series(history, m, today - timedelta(days=14))])
-        cons_net = None if cp is None else net_profit(cp, m.route.km, costs).net_per_quintal
-        cands.append(Candidate(m.key, res.net_per_quintal, cons_net, m.route.km))
+        # Round once (price to whole rupees, distance to the 0.1 km shown), then compute every
+        # money line from those values, so the card adds up exactly. A median of an even
+        # number of reports can end in .5.
+        price = rupees(ranking_price(list(week.values()), m.row.modal_price))
+        km = round(m.route.km, 1)
+        res = net_profit(price, km, costs)
+        cp_raw = conservative_price([v for _, v in _series(history, m, today - timedelta(days=14))])
+        cp = None if cp_raw is None else rupees(cp_raw)
+        cons_net = None if cp is None else net_profit(cp, km, costs).net_per_quintal
+        cands.append(Candidate(m.key, res.net_per_quintal, cons_net, km))
         rows[m.key] = {
             "market": m.market,
             "district": m.district,
             "variety": m.row.variety,
             "grade": m.row.grade,
             "modal_price": m.row.modal_price,
-            "price_used": round(price),
+            "price_used": price,
             "price_days": len(week) if len(week) >= 3 else 1,
             "min_price": m.row.min_price,
             "max_price": m.row.max_price,
             "arrival_date": m.row.arrival_date.isoformat(),
             "age_days": (today - m.row.arrival_date).days,
             "price_source": m.row.source,
-            "road_km": round(m.route.km, 1),
+            "road_km": km,
             "drive_min": round(m.route.minutes),
             "lat": m.location.lat if m.location else None,
             "lon": m.location.lon if m.location else None,
             "trips": res.trips,
-            "transport_total": round(res.transport_total),
-            "mandi_charges": round(res.mandi_charges),
-            "net_per_quintal": round(res.net_per_quintal),
-            "net_total": round(res.net_total),
-            "conservative_price": None if cp is None else round(cp),
-            "conservative_net_per_quintal": None if cons_net is None else round(cons_net),
+            "transport_total": res.transport_total,
+            "mandi_charges": res.mandi_charges,
+            "net_per_quintal": rupees(res.net_per_quintal),
+            "net_total": res.net_total,
+            "conservative_price": cp,
+            "conservative_net_per_quintal": None if cons_net is None else rupees(cons_net),
             "info": [f.en for f in m.findings],
         }
     order = rank(cands, NEAR_TIE_PER_Q)
@@ -125,13 +145,17 @@ def compute_result(state: AgentState, today: date) -> dict[str, Any]:
             "capacity_q": p.capacity_q,
             "other_charges_per_q": p.other_charges_per_q,
             "seller_fee_rate": SELLER_FEE_RATE,
-            # The fee rule above is cited for MP only; elsewhere the UI says it isn't included.
-            "fee_rule_state": "Madhya Pradesh",
+            # The fee rule above is cited for MP only; elsewhere no rule is applied and the UI
+            # says any market fee isn't included.
+            "fee_rule_state": "Madhya Pradesh" if state.get("region") == "Madhya Pradesh" else None,
         },
         "region": state.get("region"),
     }
+    if qty >= LARGE_SALE_Q:
+        out["advice"] = ["split_sale"]
     if not ranked:
         out["best"] = None
+        out["no_prices"] = state.get("no_prices")
         return out
     best = ranked[0]
     out["best"] = best
@@ -156,6 +180,7 @@ def compute_result(state: AgentState, today: date) -> dict[str, Any]:
     out["trend_per_day"] = None if slope is None else round(slope, 1)
 
     day_uncertain: bool | None = None
+    one_model = False
     wx = state.get("weather")
     if wx is not None and wx.data:
         models = {
@@ -169,14 +194,16 @@ def compute_result(state: AgentState, today: date) -> dict[str, Any]:
             {
                 "day": s.day.isoformat(),
                 "score": round(s.score, 2),
-                "both_dry": s.both_dry,
+                "dry": s.dry,
                 "uncertain": s.uncertain,
+                "one_model": s.one_model,
                 "reasons": s.reasons,
             }
             for s in scored[:3]
         ]
         out["beyond_forecast"] = [d.isoformat() for d in uncovered]
         day_uncertain = scored[0].uncertain if scored else None
+        one_model = len(models) == 1
 
         if any(s["step"] == "wait" for s in state["plan"]):
             n = i.wait_days or 3
@@ -187,13 +214,17 @@ def compute_result(state: AgentState, today: date) -> dict[str, Any]:
                 "days": n,
                 "trend_change_per_quintal": None if slope is None else round(slope * n),
                 "max_rain_risk": None if not known else round(max(known), 2),
-                "label": "trend, not forecast",
+                "label": "past trend only; prices can fall; storage costs not included",
             }
+    elif any(s["step"] == "weather" for s in state["plan"]):
+        out["weather_note"] = "no_forecast"  # both models off or failed: no safe days claimed
     out["confidence"], out["confidence_reasons"] = confidence(
         best["age_days"],
         len(ranked),
         best["conservative_net_per_quintal"] is not None,
         day_uncertain,
+        wide_spread=rules.check_spread(best["min_price"], best["modal_price"]) is not None,
+        one_model=one_model,
     )
     cur = state.get("current")
     out["sources"] = {
