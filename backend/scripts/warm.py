@@ -8,7 +8,8 @@ Real calls only; everything lands in the same cache the agent reads.
 
 data.gov.in refuses cloud servers, so the hosted backend answers from this cache: run it on a
 schedule from a machine in India. History older than 3 days is cached for good, so after the first
-run each refresh only fetches today's prices and the last few days.
+run each refresh only fetches today's prices and the last few days. History is kept to
+settings.crops; the other crops get today's prices only.
 """
 
 import asyncio
@@ -34,10 +35,14 @@ async def warm_state(state: str, crops: list[str]) -> None:
     rows = []
     for crop in crops:
         cur = await mandi.current_prices(crop, agmark(state))
-        hist = await mandi.history(
-            crop, HISTORY_DAYS, end=today_ist() - timedelta(days=1), state=agmark(state)
-        )
-        rows += (cur.data or []) + [r for h in hist for r in h.data or []]
+        rows += cur.data or []
+        # 30 days of history is one request per day; keep that to the backtested crops, or the
+        # all-crops run needs ~64k requests. Other crops rank on each mandi's latest price.
+        if crop in settings.crops:
+            hist = await mandi.history(
+                crop, HISTORY_DAYS, end=today_ist() - timedelta(days=1), state=agmark(state)
+            )
+            rows += [r for h in hist for r in h.data or []]
     districts = sorted({r.district for r in rows})
     for d in districts:
         await geocode.search(f"{DISTRICT_ALIASES.get(d, d)} district, {state}, India", limit=1)
