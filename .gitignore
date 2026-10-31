@@ -14,3 +14,6 @@ recordings/
 *.md
 !/README.md
 docs/
+
+# cache refresh log
+backend/warm.log
