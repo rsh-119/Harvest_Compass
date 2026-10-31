@@ -13,7 +13,7 @@
 
 ## 3. The solution
 - Ask in Hindi, by voice or text → spoken Hindi answer in ~12 s
-- Best mandi by **net ₹/quintal after round-trip transport** at the farmer's own vehicle rate
+- Best mandi by **net ₹/quintal after round-trip transport** at the farmer's own vehicle rate, on each mandi's 7-day median price; on a close call (≤ ₹50/q) the nearer mandi
 - Safe harvest and transport days where **two** weather models agree it's dry
 - "What if I wait 3 days?" from the real 14-day trend, labelled *trend, not forecast*
 - Asks instead of guessing: which Rampur, kg per sack, vehicle hire, unusual quantities
@@ -28,8 +28,8 @@
 
 ## 5. Results (measured on real data)
 - Backtest: 30 real villages × 60 days. Decide with only that day's data, realise the next day's price, compare with the nearest mandi
-  - **Onion: +₹480/quintal mean gain** (7-day ranking, ₹1/q-km transport). Soybean: about break-even, since MP soybean prices are nearly uniform
-  - Ranking on a 7-day median beats one day's price in every setting
+  - **Onion: +₹470/quintal mean gain** (live ranking, ₹1/q-km transport). Soybean: +₹39, about break-even, since MP soybean prices are nearly uniform
+  - Ranking on a 7-day median beats one day's price in every setting, so the live agent uses it
 - Grounding: 19/20 answered (1 correctly asks to confirm), **0 invented numbers**, median 11.4 s
 - Model choice by test: GPT-5.6 wrote a mandi name as a different town, so deepseek with a name check
 

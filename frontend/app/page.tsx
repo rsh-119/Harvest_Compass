@@ -448,9 +448,17 @@ function ResultCard({
           />
         </dl>
         <p className="mt-2 text-xs text-ink-500">
-          मॉडल भाव {rupee(b.modal_price)} ({b.variety}) · भाव की तारीख {hiDay(b.arrival_date)}
+          हिसाब का भाव {rupee(b.price_used)}{" "}
+          {b.price_days > 1 ? `(पिछले ${b.price_days} रिपोर्ट का median)` : "(ताज़ा भाव)"} · आज का मॉडल भाव{" "}
+          {rupee(b.modal_price)} ({b.variety}) · भाव की तारीख {hiDay(b.arrival_date)}
           {b.age_days > 0 && ` (${b.age_days} दिन पुराना)`}
         </p>
+        {r.nearer_pick && (
+          <p className="mt-3 text-sm text-ink-700">
+            <b>{r.nearer_pick.skipped}</b> सिर्फ़ {rupee(r.nearer_pick.extra_per_quintal)}/क्विं. ज़्यादा देती, पर{" "}
+            {r.nearer_pick.extra_km} km और दूर है, इसलिए पास वाली मंडी बताई।
+          </p>
+        )}
         {r.runner_up && r.runner_up_gap && (
           <p className="mt-3 text-sm text-ink-700">
             दूसरे नंबर पर <b>{r.runner_up.market}</b>:{" "}
@@ -512,7 +520,7 @@ function ResultCard({
               <tr>
                 <th className="py-1 pr-2">#</th>
                 <th className="pr-2">मंडी</th>
-                <th className="pr-2 text-right">भाव</th>
+                <th className="pr-2 text-right" title="7 दिन का median">भाव (7 दिन)</th>
                 <th className="pr-2 text-right">दूरी</th>
                 <th className="pr-2 text-right">भाड़ा</th>
                 <th className="text-right">शुद्ध/क्विं.</th>
@@ -526,7 +534,7 @@ function ResultCard({
                     {m.market}
                     {m.age_days > 0 && <span className="text-xs text-ink-500"> ({m.age_days}d)</span>}
                   </td>
-                  <td className="pr-2 text-right">{rupee(m.modal_price)}</td>
+                  <td className="pr-2 text-right">{rupee(m.price_used)}</td>
                   <td className="pr-2 text-right">{m.road_km < 1 ? "उसी कस्बे" : `${Math.round(m.road_km)} km`}</td>
                   <td className="pr-2 text-right">{rupee(m.transport_total)}</td>
                   <td className="text-right font-semibold">{rupee(m.net_per_quintal)}</td>
@@ -541,7 +549,7 @@ function ResultCard({
         <h3 className="font-semibold text-ink-800">खर्च का हिसाब ({b.market})</h3>
         <ul className="mt-2 space-y-1 text-sm text-ink-700">
           <li>
-            भाव: {rupee(b.modal_price)} × {r.quantity_q} क्विं. = {rupee(b.modal_price * r.quantity_q)}
+            भाव: {rupee(b.price_used)} × {r.quantity_q} क्विं. = {rupee(b.price_used * r.quantity_q)}
           </li>
           <li>
             भाड़ा: {b.trips} चक्कर × 2 (आना-जाना) × {b.road_km} km × {rupee(r.costs.rate_per_km)}/km = −

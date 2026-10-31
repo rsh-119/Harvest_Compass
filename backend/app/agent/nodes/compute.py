@@ -8,13 +8,23 @@ from app.agent.trace import emit
 from app.clock import today_ist
 from app.data.synonyms import PERISHABLE
 from app.scoring.harvest_window import Day, risk, score_window
-from app.scoring.net_profit import Candidate, Costs, conservative_price, net_profit, rank
+from app.scoring.net_profit import (
+    Candidate,
+    Costs,
+    conservative_price,
+    net_profit,
+    rank,
+    ranking_price,
+)
 from app.scoring.trend import slope_per_day
 from app.tools.mandi import PriceRow
 
 # MP Krishi Upaj Mandi Adhiniyam 1972, Sec 19(2): the market fee is payable by the BUYER and
 # "shall not be deducted from the price payable to the seller". So the farmer's fee rate is 0.
 SELLER_FEE_RATE = 0.0
+# Judgement call, not data: if a farther mandi beats a nearer one by at most this much per
+# quintal, recommend the nearer one (less fuel risk, less time, price may move by arrival).
+NEAR_TIE_PER_Q = 50.0
 
 
 def _series(history: list[PriceRow], m: Mandi, since: date) -> list[tuple[date, float]]:
@@ -56,16 +66,22 @@ def compute_result(state: AgentState, today: date) -> dict[str, Any]:
     cands = []
     for m in usable:
         assert m.row and m.route
-        res = net_profit(m.row.modal_price, m.route.km, costs)
+        week = dict(_series(history, m, today - timedelta(days=6)))
+        if m.row.arrival_date >= today - timedelta(days=6):
+            week[m.row.arrival_date] = m.row.modal_price  # today's report isn't in history yet
+        price = ranking_price(list(week.values()), m.row.modal_price)
+        res = net_profit(price, m.route.km, costs)
         cp = conservative_price([v for _, v in _series(history, m, today - timedelta(days=14))])
         cons_net = None if cp is None else net_profit(cp, m.route.km, costs).net_per_quintal
-        cands.append(Candidate(m.key, res.net_per_quintal, cons_net))
+        cands.append(Candidate(m.key, res.net_per_quintal, cons_net, m.route.km))
         rows[m.key] = {
             "market": m.market,
             "district": m.district,
             "variety": m.row.variety,
             "grade": m.row.grade,
             "modal_price": m.row.modal_price,
+            "price_used": round(price),
+            "price_days": len(week) if len(week) >= 3 else 1,
             "min_price": m.row.min_price,
             "max_price": m.row.max_price,
             "arrival_date": m.row.arrival_date.isoformat(),
@@ -84,7 +100,8 @@ def compute_result(state: AgentState, today: date) -> dict[str, Any]:
             "conservative_net_per_quintal": None if cons_net is None else round(cons_net),
             "info": [f.en for f in m.findings],
         }
-    ranked = [rows[c.key] for c in rank(cands)]
+    order = rank(cands, NEAR_TIE_PER_Q)
+    ranked = [rows[c.key] for c in order]
     excluded = [
         {
             "market": m.market,
@@ -115,16 +132,23 @@ def compute_result(state: AgentState, today: date) -> dict[str, Any]:
         return out
     best = ranked[0]
     out["best"] = best
+    top = max(ranked, key=lambda r: r["net_per_quintal"])
+    if top is not best:
+        out["nearer_pick"] = {
+            "skipped": top["market"],
+            "extra_per_quintal": top["net_per_quintal"] - best["net_per_quintal"],
+            "extra_km": round(top["road_km"] - best["road_km"]),
+        }
     if len(ranked) > 1:
         r = ranked[1]
         out["runner_up"] = r
         out["runner_up_gap"] = {
             "net_per_quintal": best["net_per_quintal"] - r["net_per_quintal"],
-            "price": round(best["modal_price"] - r["modal_price"]),
+            "price": best["price_used"] - r["price_used"],
             "transport_per_quintal": round((r["transport_total"] - best["transport_total"]) / qty),
         }
 
-    best_mandi = next(m for m in usable if m.key == rank(cands)[0].key)
+    best_mandi = next(m for m in usable if m.key == order[0].key)
     slope = slope_per_day(_series(history, best_mandi, today - timedelta(days=14)))
     out["trend_per_day"] = None if slope is None else round(slope, 1)
 
@@ -202,6 +226,14 @@ async def compute(state: AgentState) -> dict[str, Any]:
             result=None,
         )
     else:
+        if np := result.get("nearer_pick"):
+            emit(
+                "decision",
+                f"{np['skipped']} is only ₹{np['extra_per_quintal']}/q better but "
+                f"{np['extra_km']} km farther, so the nearer {best['market']} is recommended",
+                f"{np['skipped']} सिर्फ़ ₹{np['extra_per_quintal']}/क्विं. ज़्यादा देती है पर "
+                f"{np['extra_km']} km दूर है, इसलिए पास वाली {best['market']}",
+            )
         emit(
             "decision",
             f"Best: {best['market']} — net ₹{best['net_per_quintal']}/q, total ₹{best['net_total']} "

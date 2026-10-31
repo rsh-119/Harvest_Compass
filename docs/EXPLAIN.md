@@ -109,3 +109,8 @@ Run: `cd frontend && npm run dev` (needs the backend on :8000, or set `NEXT_PUBL
 - **Name check** (`explain.py`): the Hindi answer must contain the best mandi's exact name, as well as passing the number check, or it's retried / templated.
 - **`app/backtest/run_backtest.py`**: replays the last 60 days for 30 real villages with the agent's own audit and ranking, scores the next day's real price against the nearest mandi and a hindsight oracle, compares two ranking strategies over a transport sweep, and stores results in `backtest_runs`. `GET /backtest` → the UI's results card.
 - **`scripts/grounding.py`**: 20 questions through the whole agent; counts invented numbers, Hindi, length and timing per model (`--model`).
+
+## Ranking (after the backtest)
+- **`net_profit.ranking_price`**: each mandi is scored on the median of its own last 7 days of modal prices (3+ reports, else its latest). One-day spikes often don't last until the farmer arrives.
+- **`net_profit.rank(cands, near_tie)`**: sorts by net ₹/q, then moves the nearest mandi within `near_tie` of the best to the top. `compute.py` uses ₹50/q (`NEAR_TIE_PER_Q`). When this changes the pick, `result["nearer_pick"]` names the skipped mandi, and the UI and answer say why.
+- The backtest's `median7_near` strategy runs this same rule.

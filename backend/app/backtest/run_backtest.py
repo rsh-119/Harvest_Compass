@@ -22,6 +22,7 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from app.agent.nodes.audit import audit_mandis
+from app.agent.nodes.compute import NEAR_TIE_PER_Q
 from app.agent.nodes.execute import latest_rows
 from app.agent.state import Mandi
 from app.clock import today_ist
@@ -29,7 +30,7 @@ from app.config import settings
 from app.data.cache import close_pool, get_pool
 from app.data.synonyms import PERISHABLE
 from app.http import client
-from app.scoring.net_profit import Candidate, rank
+from app.scoring.net_profit import Candidate, rank, ranking_price
 from app.tools import geocode, mandi, routing
 from app.tools.mandi import PriceRow
 
@@ -71,7 +72,8 @@ TRANSPORT_SWEEP = (0.5, 1.0, 2.0)  # ₹ per quintal per km; e.g. ₹30/km for 2
 # What price a mandi is ranked on. "today" = latest modal (what the agent did first);
 # "median7" = median of the mandi's own modal prices over the last 7 days (needs 3+ reports,
 # else its latest modal), which damps one-day spikes that don't last until tomorrow.
-STRATEGIES = ("today", "median7")
+# "median7_near" = median7 plus the near-tie rule (what the live agent does).
+STRATEGIES = ("today", "median7", "median7_near")
 
 
 def _net(price: float, km: float, c: float) -> float:
@@ -146,9 +148,15 @@ def _decide(setup: dict[str, Any], crop: str, t: date) -> list[dict[str, Any]]:
                     break
                 ranked = rank(
                     [
-                        Candidate(m.key, _net(_score_price(m, strat, own, t), km[m.key], c), None)
+                        Candidate(
+                            m.key,
+                            _net(_score_price(m, strat, own, t), km[m.key], c),
+                            None,
+                            km[m.key],
+                        )
                         for m in usable
-                    ]
+                    ],
+                    NEAR_TIE_PER_Q if strat == "median7_near" else 0.0,
                 )
                 chosen = next(m for m in usable if m.key == ranked[0].key)
                 if chosen.key not in tomorrow:
@@ -177,13 +185,10 @@ def _score_price(
     m: Mandi, strat: str, own: dict[tuple[str, str, str], list[tuple[date, float]]], t: date
 ) -> float:
     assert m.row
-    if strat == "median7":
-        recent = [
-            v for d, v in own.get((m.key, m.row.variety, m.row.grade), []) if (t - d).days < 7
-        ]
-        if len(recent) >= 3:
-            return statistics.median(recent)
-    return m.row.modal_price
+    if strat == "today":
+        return m.row.modal_price
+    recent = [v for d, v in own.get((m.key, m.row.variety, m.row.grade), []) if (t - d).days < 7]
+    return ranking_price(recent, m.row.modal_price)
 
 
 def _too_far(m: Mandi, crop: str) -> bool:

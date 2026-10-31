@@ -14,7 +14,14 @@ from app.scoring.audit_rules import (
     robust_z,
 )
 from app.scoring.harvest_window import Day, risk, score_window
-from app.scoring.net_profit import Candidate, Costs, conservative_price, net_profit, rank
+from app.scoring.net_profit import (
+    Candidate,
+    Costs,
+    conservative_price,
+    net_profit,
+    rank,
+    ranking_price,
+)
 from app.scoring.trend import slope_per_day
 
 D0 = date(2026, 11, 1)
@@ -63,6 +70,19 @@ def test_rank_by_net_then_conservative() -> None:
     c = Candidate("c", 6600, None)  # best net even without history
     d = Candidate("d", 6500, None)  # missing conservative sorts after known ones
     assert [x.key for x in rank([a, b, c, d])] == ["c", "b", "a", "d"]
+
+
+def test_near_tie_prefers_nearer_mandi() -> None:
+    far = Candidate("rajgarh", 6536, None, 130)
+    near = Candidate("ujjain", 6500, None, 0.5)
+    mid = Candidate("dewas", 6400, None, 40)
+    assert [x.key for x in rank([far, near, mid], near_tie=50)] == ["ujjain", "rajgarh", "dewas"]
+    assert rank([far, near, mid], near_tie=30)[0].key == "rajgarh"  # gap 36 > 30
+
+
+def test_ranking_price_is_7day_median_with_3_reports() -> None:
+    assert ranking_price([6000, 6900, 6100], 6900) == 6100  # one-day spike damped
+    assert ranking_price([6000, 6900], 6900) == 6900  # too few: latest
 
 
 # --- trend ---

@@ -52,7 +52,8 @@ def facts_for(result: dict[str, Any]) -> dict[str, Any]:
         "quantity_quintal": result["quantity_q"],
         "best_mandi": b["market"],
         "road_km": b["road_km"],
-        "modal_price": b["modal_price"],
+        "modal_price_today": b["modal_price"],
+        "price_used_7day_median": b["price_used"],
         "price_date": hi_date(b["arrival_date"]),
         "net_per_quintal": b["net_per_quintal"],
         "net_total": b["net_total"],
@@ -62,6 +63,10 @@ def facts_for(result: dict[str, Any]) -> dict[str, Any]:
     if r := result.get("runner_up"):
         f["runner_up"] = r["market"]
         f["runner_up_net_per_quintal"] = r["net_per_quintal"]
+    if np := result.get("nearer_pick"):
+        f["farther_mandi_skipped"] = np["skipped"]
+        f["farther_mandi_extra_per_quintal"] = np["extra_per_quintal"]
+        f["farther_mandi_extra_km"] = np["extra_km"]
     if days := result.get("harvest_days"):
         f["safest_days"] = [hi_date(d["day"]) for d in days[:2]]
     if w := result.get("wait"):

@@ -10,7 +10,7 @@ A farmer with 40 quintals of soybean usually sells at the nearest mandi, or wher
 ## What it does
 - **Hindi voice in, Hindi voice out.** Sarvam speech-to-text and text-to-speech; text works too.
 - **Asks instead of guessing.** Ambiguous village ("which Rampur?"), sacks without a weight, missing vehicle hire, an unlikely quantity: one short question each, never a made-up value.
-- **Net ₹ per quintal, not headline price.** Modal price minus round-trip transport at the farmer's own rate, across all reachable mandis. Drive-time caps are tighter for onion.
+- **Net ₹ per quintal, not headline price.** Each mandi's 7-day median modal price (3+ reports, else its latest) minus round-trip transport at the farmer's own rate, across all reachable mandis. If a farther mandi wins by ₹50/quintal or less, the nearer one is recommended and the skipped one is named. Drive-time caps are tighter for onion.
 - **Audits the data visibly.** Rejects stale (>3 days), inconsistent (min > max) and outlier prices (robust z-score against the mandi's own 30 days and the region), and keeps like-for-like variety and grade. Each rejected mandi is named with its reason.
 - **Repairs itself.** Today's price feed down → each mandi's latest report, with its age. One weather model down → the other, with days marked uncertain. Too few usable mandis → widen the radius. All shown live in the trace.
 - **Safe days.** ECMWF and GFS daily rain from Open-Meteo. A day is "safe" only when both models agree it's dry, and the transport day after it counts too.
@@ -52,12 +52,12 @@ flowchart LR
 
 Transport is a swept assumption (₹0.5/1/2 per quintal-km), not a measured rate. Mean gain vs nearest mandi, ₹/quintal:
 
-| | Rank on today's price | Rank on 7-day median price |
-|---|---|---|
-| Onion | +426 / +393 / +378 | +540 / +482 / +429 |
-| Soybean | +27 / −32 / −73 | +61 / +15 / −4 |
+| | Rank on today's price | 7-day median | 7-day median + nearer on close calls (**live**) |
+|---|---|---|---|
+| Onion | +437 / +401 / +379 | +540 / +482 / +429 | +511 / +470 / +413 |
+| Soybean | +27 / −32 / −73 | +61 / +15 / −4 | +69 / +39 / −5 |
 
-Choosing the mandi pays for onion, where prices differ a lot between mandis. For soybean, prices are nearly uniform across MP, so the nearest mandi is about as good. Ranking on a 7-day median beats one day's price everywhere, because single-day spikes often don't last until the farmer arrives. About 30% of decisions couldn't be scored, because the chosen mandi didn't report the next day.
+Choosing the mandi pays for onion, where prices differ a lot between mandis. For soybean, prices are nearly uniform across MP, so the nearest mandi is about as good. Ranking on a 7-day median beats one day's price everywhere, because single-day spikes often don't last until the farmer arrives. Preferring the nearer mandi on close calls (≤ ₹50/q) helps soybean and costs onion ₹12–29/q on average, for shorter trips. About 30% of decisions couldn't be scored, because the chosen mandi didn't report the next day.
 
 **Grounding test** (`backend/scripts/grounding.py`), 20 varied Hindi/Hinglish questions:
 
@@ -127,7 +127,7 @@ uv run python -m scripts.smoke                       # one live call to every so
 - Transport rates come from the farmer. The backtest sweeps assumed rates, because we have no measured local rates yet.
 - data.gov.in history lags a day, and many mandis don't report every day (~30% of backtest decisions were unscorable).
 - Some towns exist in OSM only as a tahsil (Badnagar, Mahidpur). We ask the farmer to confirm the tahsil rather than guess. 3 of 243 mandis are still unmapped and are excluded by name.
-- The 7-day ranking improvement is measured in the backtest. The live agent still ranks on today's price, pending the team's decision.
+- The ₹50/quintal "close call" margin is a judgement call, not measured data.
 - Weather beyond 7 days isn't forecast; those days are shown as "no forecast yet".
 - In-memory rate limiting holds for one backend instance.
 

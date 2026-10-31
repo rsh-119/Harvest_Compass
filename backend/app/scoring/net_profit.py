@@ -48,16 +48,25 @@ def conservative_price(recent_modals: list[float], min_days: int = 5) -> float |
     return statistics.quantiles(recent_modals, n=4, method="inclusive")[0]
 
 
+def ranking_price(last7: list[float], latest: float) -> float:
+    """Median of the mandi's own modal prices over the last 7 days (3+ reports), else the latest.
+    The backtest showed one-day spikes often don't last until the farmer arrives."""
+    return statistics.median(last7) if len(last7) >= 3 else latest
+
+
 @dataclass(frozen=True)
 class Candidate:
     key: str
     net_per_quintal: float
     conservative_net_per_quintal: float | None
+    road_km: float = 0.0
 
 
-def rank(cands: list[Candidate]) -> list[Candidate]:
-    """Best modal net first. Conservative net only breaks ties (a missing one sorts last)."""
-    return sorted(
+def rank(cands: list[Candidate], near_tie: float = 0.0) -> list[Candidate]:
+    """Best net first. Conservative net only breaks exact ties (a missing one sorts last).
+    Then, among mandis within `near_tie` ₹/q of the best, the nearest goes first:
+    a long trip for a few rupees isn't worth the risk."""
+    s = sorted(
         cands,
         key=lambda c: (
             -round(c.net_per_quintal, 2),
@@ -68,3 +77,10 @@ def rank(cands: list[Candidate]) -> list[Candidate]:
             ),
         ),
     )
+    if not s:
+        return s
+    pick = min(
+        (c for c in s if s[0].net_per_quintal - c.net_per_quintal <= near_tie),
+        key=lambda c: c.road_km,
+    )
+    return [pick, *(c for c in s if c is not pick)]

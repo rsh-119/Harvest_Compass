@@ -18,7 +18,11 @@ type Summary = {
 type Run = { crop: string; run_at: string; window: [string, string]; villages: string[]; summaries: Summary[] };
 
 const CROP_HI: Record<string, string> = { Soyabean: "सोयाबीन", Onion: "प्याज़" };
-const STRAT_HI: Record<string, string> = { today: "आज के भाव से", median7: "7 दिन के औसत (median) से" };
+const STRAT_HI: Record<string, string> = {
+  today: "आज के भाव से",
+  median7: "7 दिन के median से",
+  median7_near: "7 दिन का median + बराबरी पर पास वाली (अभी यही)",
+};
 
 export default function BacktestCard() {
   const [runs, setRuns] = useState<Run[] | null>(null);

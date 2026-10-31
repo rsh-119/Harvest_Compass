@@ -284,3 +284,23 @@ Playwright on localhost, 390×844:
 - [x] Final grep: no mock/sample/dummy data files, no hardcoded prices, no secrets ("sample" hits are the statistics term only)
 
 **Status: everything that doesn't need a team account or recordings is done.**
+
+## Loop: 7-day median ranking + nearer on close calls (31 Oct)
+- **Goal:** team decision after M8: rank on the 7-day median, prefer the nearer mandi on close calls.
+- **Build:**
+  - `net_profit.ranking_price`: median of the mandi's own modal over the last 7 days (3+ reports, today's report included), else its latest modal.
+  - `rank(..., near_tie)`: among mandis within `NEAR_TIE_PER_Q = 50` ₹/q of the best, the nearest goes first. ₹50 is a judgement call, labelled as such in `compute.py`.
+  - The result carries `price_used`, `price_days` and `nearer_pick` (skipped mandi, extra ₹/q, extra km). These show in the trace, the facts for the LLM, and the UI (a "हिसाब का भाव" line, a table column "भाव (7 दिन)", the cost breakdown).
+  - The backtest gained a `median7_near` strategy, which is exactly the live rule.
+- **Check:** ruff, mypy --strict, 38 tests (new: near-tie order, median needs 3 reports), tsc, eslint.
+- **Verify:**
+  - Live: 40 q soybean, Ujjain → Ujjain APMC, price used ₹6,900 (median) while today's modal is ₹7,025.
+  - Backtest rerun (mean gain ₹/q at 0.5 / 1 / 2):
+
+| Crop | today | median7 | median7_near (live) |
+|---|---|---|---|
+| Onion | +437 / +401 / +379 | +540 / +482 / +429 | +511 / +470 / +413 |
+| Soybean | +27 / −32 / −73 | +61 / +15 / −4 | +69 / +39 / −5 |
+
+  - Onion's "today" numbers moved by under ₹11 from the earlier run, because the cached history refreshed.
+- **Reflect:** the near rule helps soybean (prices are uniform, so distance matters more) and costs onion ₹12–29/q for shorter trips. Mean regret at ₹1/q-km: soybean 344 (best of the three), onion 315 (same as median7).

@@ -23,6 +23,8 @@ export type MandiRow = {
   district: string;
   variety: string;
   modal_price: number;
+  price_used: number; // 7-day median of this mandi's modal (3+ reports), else the latest modal
+  price_days: number;
   min_price: number;
   max_price: number;
   arrival_date: string;
@@ -49,6 +51,7 @@ export type Result = {
   best: MandiRow | null;
   runner_up?: MandiRow;
   runner_up_gap?: { net_per_quintal: number; price: number; transport_per_quintal: number };
+  nearer_pick?: { skipped: string; extra_per_quintal: number; extra_km: number };
   ranking: MandiRow[];
   excluded: { market: string; district: string; reasons: string[]; reasons_hi: string[] }[];
   radius_km: number;
