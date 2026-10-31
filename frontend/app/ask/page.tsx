@@ -148,7 +148,8 @@ export default function AskPage() {
     setTimeout(() => pipelineRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
     const steps: TraceEvent[] = [];
     try {
-      await ask({ ...body, params: { ...params, ...body.params }, faults, speak: langInfo.voice && (readAloud || lastSpoken.current), lang }, (e) => {
+      // Only the params this call passes: a new question never inherits the last answer's vehicle.
+      await ask({ ...body, params: body.params ?? DEFAULT_PARAMS, faults, speak: langInfo.voice && (readAloud || lastSpoken.current), lang }, (e) => {
         if (e.event === "audio") {
           const bytes = Uint8Array.from(atob(String((e as TraceEvent).wav_b64)), (c) => c.charCodeAt(0));
           const url = URL.createObjectURL(new Blob([bytes], { type: "audio/wav" }));
@@ -158,7 +159,10 @@ export default function AskPage() {
           const f = e as Final;
           setFinal(f);
           setPending(f.clarify);
-          if (f.result) setParams((p) => ({ ...p, ...f.result!.costs })); // show what was used
+          if (f.result) {
+            const c = f.result.costs; // show what was used, in the edit boxes
+            setParams((p) => ({ ...p, rate_per_km: c.rate_per_km, capacity_q: c.capacity_q, other_charges_per_q: c.other_charges_per_q }));
+          }
           patchLast({ final: f });
         } else {
           steps.push(e as TraceEvent);
@@ -168,7 +172,7 @@ export default function AskPage() {
       });
     } catch (err) {
       const msg = err instanceof Error && err.message.includes("—") ? err.message : null; // our 429 text
-      setError(msg ?? t("unreachable"));
+      setError(err instanceof Error && err.message === "422" ? t("too_long") : (msg ?? t("unreachable")));
     } finally {
       setBusy(false);
     }
@@ -184,20 +188,24 @@ export default function AskPage() {
       body.previous = pending.intent;
       body.question = pending.text ?? pending.en;
       body.place = pending.place;
+      body.params = params;
       const kg = parseFloat(q.replace(/[^\d.]/g, ""));
       if (pending.needs === "bori_kg" && kg > 0) {
         body.params = { ...params, bori_kg: kg };
         setParams(body.params); // keep it for the next question in this conversation
       }
     } else {
+      // A new question: vehicle, charges and confirmations from the last one don't carry over.
       lastText.current = q;
+      body.params = DEFAULT_PARAMS;
+      setParams(DEFAULT_PARAMS);
     }
     setText("");
     run(body, q);
   }
 
   function confirmPlace(p: Place) {
-    run({ text: lastText.current, previous: pending?.intent, place: p }, `${t("yes")}, ${p.name}`);
+    run({ text: lastText.current, previous: pending?.intent, place: p, params }, `${t("yes")}, ${p.name}`);
   }
 
   function confirmQty() {
@@ -208,7 +216,7 @@ export default function AskPage() {
 
   function recalc() {
     if (!final?.intent || !final.place) return;
-    run({ text: lastText.current, previous: final.intent, place: final.place }, t("recalc"));
+    run({ text: lastText.current, previous: final.intent, place: final.place, params, recalc: true }, t("recalc"));
   }
 
   function reset() {
@@ -315,9 +323,7 @@ export default function AskPage() {
                       onClick={() => confirmPlace(p)}
                       className="rounded-2xl bg-white px-4 py-2 text-left text-sm shadow-sm ring-1 ring-amber-300 hover:bg-amber-100"
                     >
-                      <b>
-                        {t("yes")}, {p.name}
-                      </b>
+                      <b>{asking.options!.length > 1 ? p.name : `${t("yes")}, ${p.name}`}</b>
                       <span className="block text-xs text-ink-500">{p.display_name}</span>
                     </button>
                   ))}
@@ -328,6 +334,7 @@ export default function AskPage() {
           <div className="mt-3 flex items-end gap-2">
             <textarea
               id="q"
+              maxLength={1000}
               value={text}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), submit())}
@@ -753,6 +760,7 @@ function ResultView({
             )}
           </div>
         )}
+        {r.advice?.includes("split_sale") && <p className="mt-4 rounded-2xl bg-white/10 p-3 text-sm text-leaf-50">⚖️ {t("split_sale")}</p>}
         <p className="mt-4 text-xs text-leaf-100">
           {t("price_used", { p: rupee(b.price_used) })} {b.price_days > 1 ? t("median_of", { n: b.price_days }) : t("latest")} · {b.variety} ·{" "}
           {t("price_date", { d: day(b.arrival_date) })}
@@ -761,15 +769,21 @@ function ResultView({
       </section>
 
       {/* 2. Weather and waiting */}
-      {(r.harvest_days?.length || r.wait) && (
+      {(r.harvest_days?.length || r.wait || r.weather_note) && (
         <section className="glass p-5 sm:p-6">
+          {r.weather_note === "no_forecast" && (
+            <>
+              <h3 className="font-display text-2xl font-bold">🌾 {t("weather")}</h3>
+              <p className="mt-1 text-ink-700">{t("no_weather")}</p>
+            </>
+          )}
           {r.harvest_days && r.harvest_days.length > 0 && (
             <>
               <h3 className="font-display text-2xl font-bold">🌾 {t("weather")}</h3>
               <p className="text-sm text-ink-600">{t("safe_days")}</p>
               <ul className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-7">
                 {r.harvest_days.map((d) => {
-                  const ok = d.both_dry && !d.uncertain;
+                  const ok = d.dry && !d.uncertain;
                   const dt = dateOf(d.day);
                   return (
                     <li
@@ -780,11 +794,11 @@ function ResultView({
                       <p className="text-xs font-semibold text-ink-600 uppercase">{dt.toLocaleDateString(locale, { weekday: "short" })}</p>
                       <p className="font-display text-2xl font-bold">{dt.toLocaleDateString(locale, { day: "numeric" })}</p>
                       <p className="text-2xl" aria-hidden>
-                        {d.both_dry ? "☀️" : "🌧️"}
+                        {d.dry ? "☀️" : "🌧️"}
                       </p>
                       <p className={`mt-1 text-xs font-semibold ${ok ? "text-leaf-800" : "text-amber-900"}`}>
-                        {(d.both_dry ? t("dry") : t("rain")).replace(/^\S+\s/, "")}
-                        {d.uncertain && t("uncertain")}
+                        {(d.dry ? t("dry") : t("rain")).replace(/^\S+\s/, "")}
+                        {d.one_model ? t("one_model") : d.uncertain && t("uncertain")}
                       </p>
                     </li>
                   );

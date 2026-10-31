@@ -495,7 +495,7 @@
     "no_trend": "Not enough history to read a price trend.",
     "trend": "From the last 14 days' trend, the price may change by about {p}/q",
     "rain_risk": "rain risk {p}%",
-    "trend_note": "This is a trend, not a forecast.",
+    "trend_note": "Past trend only: prices can fall, and storage costs are not included.",
     "map": "Map",
     "compare": "Mandis compared",
     "col_mandi": "Mandi",
@@ -580,6 +580,10 @@
     "c_dates": "Ready",
     "c_vehicle": "Vehicle rate",
     "c_storage": "Has storage",
-    "day_old": "(1 day old)"
+    "day_old": "(1 day old)",
+    "too_long": "That message is too long. Please keep your question under 1000 characters.",
+    "one_model": " · one model only, lower confidence",
+    "no_weather": "No weather forecast is available, so no harvest days are suggested.",
+    "split_sale": "Selling this much at one mandi may lower the price; consider splitting it across mandis or days."
   }
 }

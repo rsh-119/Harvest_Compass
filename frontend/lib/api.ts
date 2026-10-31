@@ -59,7 +59,9 @@ export type Result = {
   notes: string[];
   costs: { rate_per_km: number; capacity_q: number; other_charges_per_q: number; seller_fee_rate: number };
   trend_per_day?: number | null;
-  harvest_days?: { day: string; both_dry: boolean; uncertain: boolean; reasons: string[] }[];
+  harvest_days?: { day: string; dry: boolean; uncertain: boolean; one_model?: boolean; reasons: string[] }[];
+  weather_note?: "no_forecast";
+  advice?: string[];
   beyond_forecast?: string[];
   wait?: { days: number; trend_change_per_quintal: number | null; max_rain_risk: number | null; label: string };
   confidence?: "high" | "medium" | "low";
@@ -96,6 +98,7 @@ export type AskBody = {
   faults?: string[];
   speak?: boolean;
   lang?: string;
+  recalc?: boolean; // "Change your numbers": edit boxes win over the words
 };
 
 export type Health = {
@@ -135,6 +138,7 @@ export async function ask(body: AskBody, onEvent: (e: TraceEvent | Final) => voi
     body: JSON.stringify(body),
   });
   if (res.status === 429) throw new Error((await res.json()).detail);
+  if (res.status === 422) throw new Error("422"); // e.g. question over 1000 characters
   if (!res.ok || !res.body) throw new Error(`server returned ${res.status}`);
   const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
   let buf = "";
