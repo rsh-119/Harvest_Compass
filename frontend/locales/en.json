@@ -560,6 +560,26 @@
     "vs_best": "{p}/q less than best",
     "weather": "Harvest days",
     "welcome": "Tell us your crop, how much you have and your village. You'll get the best mandi after transport and the dry days to harvest.",
-    "more": "More details"
+    "more": "More details",
+    "understood": "What the agent understood",
+    "you_asked": "You asked",
+    "previous": "Previous questions",
+    "agent_says": "Agent's answer",
+    "pipeline": "Agent at work",
+    "not_needed": "not needed",
+    "stg_sources": "{n} sources",
+    "stg_left_out": "{n} left out",
+    "stg_all_ok": "all passed",
+    "stg_fixed": "{n} fixed",
+    "stg_asked": "asked you",
+    "stg_done": "done",
+    "took": "Done in {s} s · tap a step to see its log",
+    "c_crop": "Crop",
+    "c_qty": "Quantity",
+    "c_village": "Village",
+    "c_dates": "Ready",
+    "c_vehicle": "Vehicle rate",
+    "c_storage": "Has storage",
+    "day_old": "(1 day old)"
   }
 }

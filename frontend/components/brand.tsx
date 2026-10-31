@@ -7,6 +7,10 @@ export const NAV = [
   { href: "/about", key: "about" },
 ] as const;
 
+// The agent's seven steps (names in how.flow): which use the language model, and their icons.
+export const STEP_AI = [true, false, false, false, false, false, true];
+export const STEP_ICONS = ["🗣️", "🧭", "📡", "🔍", "🛟", "🧮", "🔊"];
+
 export function Compass({ size = 28 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden>

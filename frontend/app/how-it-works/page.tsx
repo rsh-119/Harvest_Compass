@@ -1,12 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { STEP_AI as AI, STEP_ICONS as ICONS } from "@/components/brand";
 import FlowMap from "@/components/FlowMap";
 import { useLang, type Dict } from "@/lib/i18n";
 
-// Which steps use the language model; the rest are plain code.
-const AI = [true, false, false, false, false, false, true];
-const ICONS = ["🗣️", "🧭", "📡", "🔍", "🛟", "🧮", "🔊"];
 const RULE_ICONS = ["⏳", "⚖️", "📈", "🌾", "🗺️"];
 
 function Badge({ ai, h }: { ai: boolean; h: Dict["how"] }) {
