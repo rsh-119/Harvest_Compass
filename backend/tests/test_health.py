@@ -17,3 +17,8 @@ def test_health_reports_every_source() -> None:
         "routing",
         "geocoding",
     }
+
+
+def test_transcribe_rejects_empty_audio_without_calling_sarvam() -> None:
+    r = TestClient(app).post("/transcribe", files={"audio": ("a.webm", b"", "audio/webm")})
+    assert r.status_code == 400

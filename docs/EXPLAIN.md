@@ -80,3 +80,17 @@ Every step sends live trace events (`trace.py` → SSE), each with an English an
 
 Windows dev note: run `uv run uvicorn app.main:app --reload --loop asyncio:SelectorEventLoop`, because psycopg async can't use the default Windows event loop. Linux (deployment) needs nothing.
 Ask from the terminal: `uv run python -m scripts.ask "मेरे पास 40 क्विंटल सोयाबीन है, गाँव सांवेर" [--fault weather_ecmwf]`.
+
+## frontend/ — the farmer's screen (M5)
+- `lib/api.ts`: types that mirror the backend result, `ask()` and `transcribe()`. `ask()` POSTs to `/ask` and reads the SSE stream by hand (the browser's EventSource only does GET). Each `data: {...}` block becomes one trace event; the last one is `final`.
+- `app/page.tsx`: one page.
+  - Ask box: type, or tap 🎤 (records up to 25 s, sends to `/transcribe`, puts the text in the box and asks).
+  - If the agent asks something (`clarify`), the question shows above the box. The next answer is sent with the previous intent, so nothing is lost. Village options show as buttons; the chosen place is sent back and never re-guessed.
+  - Live trace: every event with an icon, Hindi first and English below, plus source status, time taken and fetch time. Repairs show in amber, rejections in red.
+  - Result: the Hindi answer and confidence badge, the best-mandi card, safe days, the "wait N days" line (labelled *trend, not forecast*), the map, the comparison table, and the cost breakdown with edit boxes. "Recalculate" asks again with the new costs and the same confirmed place. Then excluded mandis with reasons, and sources with timestamps and the Open-Meteo attribution.
+  - All numbers on screen come from the backend; the page only formats them.
+- `components/MandiMap.tsx`: plain Leaflet (no React wrapper), loaded only in the browser. OSM tiles with attribution.
+- Colours: `leaf` (green, money and good) and `ink` (warm greys) tokens in `globals.css`. Light theme only, for reading in sunlight. Font: Mukta (Devanagari + Latin).
+- `backend/app/main.py /transcribe`: audio upload → Sarvam STT → `{text}`. Empty audio → 400, over 5 MB → 413, Sarvam failure → 502 (the UI then says "please type").
+
+Run: `cd frontend && npm run dev` (needs the backend on :8000, or set `NEXT_PUBLIC_API_URL`).

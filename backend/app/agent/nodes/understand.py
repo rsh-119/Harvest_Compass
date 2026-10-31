@@ -155,7 +155,7 @@ async def understand(state: AgentState) -> dict[str, Any]:
     intent = _merge(req.previous, await extract(req.text))
     emit(
         "understand",
-        f"Understood: {intent.model_dump(exclude_none=True, exclude_defaults=True)}",
+        f"Understood: {intent.model_dump(mode='json', exclude_none=True, exclude_defaults=True)}",
         "आपकी बात समझी",
         intent=intent.model_dump(mode="json"),
     )

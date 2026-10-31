@@ -77,3 +77,12 @@ Last 7 days (24–30 Oct) from the history resource, MP only, distance = straigh
 - **Section 19(2)**: "The market fees shall be payable by the buyer of the notified agricultural produce and shall not be deducted from the price payable to the seller." Source: Act text (as amended), https://prsindia.org/files/bills_acts/acts_states/madhya-pradesh/1973/1973MP24.pdf
 - Rate (paid by the buyer): raised from ₹1.00 to ₹1.50 per ₹100 by notification BORAD-LEKHA-2025-26(1073987), 15 Jun 2026, effective from Gazette publication. Source: https://teamleaseregtech.com/updates/article/57895/mpfwad-revision-of-market-fee-under-the-madhya-pradesh-krishi-upaj-mandi-adhiniyam-1972/
 - **Consequence:** the farmer's mandi-fee deduction is 0 in MP. Weighing/hammali charges exist (Sec 17: the committee recovers and distributes them), but rates are set per committee by bye-law, and we found no published rates. So: an editable "other charges ₹/quintal" field, default 0, which the farmer fills in.
+
+## Mandi name aliases (31 Oct 2026)
+data.gov.in spells some mandi towns differently from OpenStreetMap (Haatpipliya/Hatpipliya, Harsood/Harsud, "A lot"/Alot). Some towns also moved to a new district (Agar, Badod and Soyat Kalan are now in Agar Malwa). `MANDI_TOWN_ALIASES` in `backend/app/data/synonyms.py` maps the name only; coordinates always come from Nominatim. Every alias was checked by a Nominatim query on 31 Oct 2026. Result: 3 of 243 MP soybean/onion mandis are still unmapped (Barad, Chhapiheda, Sheopurbadod).
+
+## OSM map tiles
+- `https://tile.openstreetmap.org/{z}/{x}/{y}.png` in the Leaflet map, with the required "© OpenStreetMap contributors" attribution. The usage policy allows light use like ours (a demo with a few users); a heavy-traffic app would need its own tile provider.
+
+## Sarvam STT input
+- Browser MediaRecorder produces WebM/Opus. Sarvam docs list WebM as supported, and the REST endpoint is meant for clips under 30 s, so the UI stops at 25 s.

@@ -164,4 +164,32 @@ Also: Windows-only event-loop issue (psycopg vs Proactor). Fixed with `--loop as
 - 17 of 99 mandis can't be geocoded (e.g. Agar, Harsood, Haatpipliya/"Hatpipliya", "A lot"/Alot). They're excluded and named. Plan: hand-check spelling aliases into `synonyms.py` (vocabulary, not coordinates), or use Nominatim structured search in M7.
 - STT village errors ("सामेर"): "did you mean Sanwer?" needs a per-district village list (e.g. OSM Overpass). Planned for M6.
 - Sanwer→Sanwer APMC = 0 km road (village and mandi are in the same town). Correct, but it looks odd. The UI should say "same town".
-- **Status: M4 criteria pass. HUMAN GATE — waiting for design review before M5.**
+- **Status: M4 criteria pass. Gate passed 31 Oct (see below).**
+
+### M4 gate decisions (31 Oct 2026, human)
+- GO for M5. **Seller mandi fee = 0 confirmed** (MP Act Sec 19(2)).
+- **Add mandi spelling aliases**: done. 30 aliases in `MANDI_TOWN_ALIASES` (synonyms.py) plus `Anupur→Anuppur`. Each was checked by hand on Nominatim. Unmapped mandis went from **39 of 243 to 3** (Barad, Chhapiheda, Sheopurbadod: no match on OSM in the right district, still excluded and named). Agar, Badod and Soyat Kalan are now in Agar Malwa district; data.gov.in still lists them under Shajapur.
+
+## M5 — Frontend
+**Acceptance criteria**
+- [x] Mic button + text box (mic → `POST /transcribe` (Sarvam, WebM) → fills the box and asks)
+- [x] Live trace panel over SSE (fetch + stream reader; EventSource can't POST)
+- [x] Result card: Hindi answer, confidence badge + reasons, best mandi, net/q, total, bad-day net, runner-up gap, harvest days, wait-N trade-off
+- [x] Map of ranked mandis (plain Leaflet + OSM tiles, top 5 numbered, home pin)
+- [x] Sources with timestamps (IST) and status; Open-Meteo CC BY 4.0 attribution with links
+- [x] Cost breakdown with editable ₹/km, quintals per trip, other charges → "recalculate" reruns with the confirmed place (skips village matching)
+- [x] Mobile-friendly (tested at 390×844), Hindi-first labels, "same town" instead of 0 km
+
+### Evidence (M5)
+Playwright on localhost, 390×844:
+- Sanwer example → trace streamed live, then Sanwer APMC ₹6,900/q "उसी कस्बे में (same town)", total ₹2,76,000, bad-day ₹6,725, harvest days ☀️ 5, 2, 4 Nov, map with 10 ranked pins and the home pin, 11 excluded with reasons (down from ~24 thanks to aliases), sources with fetch time.
+- Rate changed to ₹45/km → recalculated: Rajgarh (134 km) drops from #2. Ujjain transport 26 km × 2 × 2 trips × ₹45 = ₹4,682 ✓.
+- "20 क्विंटल सोयाबीन, गाँव रामपुर" → three Rampur buttons with tahsil names. Picked Gohparu → two visible radius repairs (150→200→250 km) → Satna APMC.
+- Browser console: 0 errors, 0 warnings. `check.sh`: ruff, mypy strict, 32 tests, eslint, tsc all pass.
+- Security: Next 15.5.4 had a critical RSC RCE advisory; upgraded to 15.5.28. Remaining `npm audit` highs are in `sharp` (next/image only, which we don't use). Mandi names are HTML-escaped in map popups (external data).
+
+### Reflection (M5)
+- The trace showed Python's `datetime.date(...)` repr in the "understood" line. Fixed with `model_dump(mode='json')`.
+- The Hindi answer sometimes says "शुद्ध लाभ" (net profit) for what is the net price after transport. To tighten in the explain prompt in M7.
+- Mic recording → Sarvam is wired up but not yet tested with a real voice; that's M6.
+- **Status: M5 criteria pass. Next: M6 voice, then deploy a first version (brief: by Sat evening).**

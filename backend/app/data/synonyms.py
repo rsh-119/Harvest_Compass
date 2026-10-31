@@ -27,6 +27,44 @@ PERISHABLE = {"Onion", "Tomato"}
 DISTRICT_ALIASES: dict[str, str] = {
     "Badwani": "Barwani",
     "Shehdol": "Shahdol",
+    "Anupur": "Anuppur",
+}
+
+# data.gov.in mandi town -> (OpenStreetMap spelling, OSM district if it differs). Each one was
+# checked by hand on Nominatim on 31 Oct 2026. Names only: coordinates always come from OSM.
+# Agar, Badod and Soyat Kalan moved to the new Agar Malwa district; data.gov.in still says Shajapur.
+# Still unmapped (excluded and named): Barad (Shivpuri), Chhapiheda (Rajgarh; OSM has one only in
+# Shajapur), Sheopurbadod (OSM has only the tahsil).
+MANDI_TOWN_ALIASES: dict[str, tuple[str, str | None]] = {
+    "A lot": ("Alot", None),
+    "Agar": ("Agar", "Agar Malwa"),
+    "Akodiya": ("Akodia", None),
+    "Badamalhera": ("Bada Malhera", None),
+    "Badod": ("Badod", "Agar Malwa"),
+    "Badwaha": ("Barwaha", None),
+    "Badwani": ("Barwani", None),
+    "Berachha": ("Berchha", None),
+    "Bhensdehi": ("Bhainsdehi", None),
+    "Bherunda": ("Nasrullaganj", None),  # Bherunda is the new name of Nasrullaganj
+    "Gadakota": ("Garhakota", None),
+    "Gadarwada": ("Gadarwara", None),
+    "Ganjbasoda": ("Ganj Basoda", None),
+    "Haatpipliya": ("Hatpipliya", None),
+    "Harsood": ("Harsud", None),
+    "Jeerapur": ("Jirapur", None),
+    "Lashkar": ("Gwalior", None),  # Lashkar is Gwalior's old city; OSM has no separate place
+    "Mungawali": ("Mungaoli", None),
+    "Naugaon": ("Nowgong", None),
+    "Obedullaganj": ("Obaidullaganj", None),
+    "Paatan": ("Patan", None),
+    "Pachaur": ("Pachore", None),
+    "Rehati": ("Rehti", None),
+    "Semriharchand": ("Semri Harchand", None),
+    "Shahagarh": ("Shahgarh", None),
+    "Sheopurkalan": ("Sheopur", None),
+    "Soyatkalan": ("Soyat Kalan", "Agar Malwa"),
+    "Suvasra": ("Suwasra", None),
+    "Taal": ("Tal", None),
 }
 
 

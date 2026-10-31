@@ -6,7 +6,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
@@ -16,6 +16,7 @@ from app.config import settings
 from app.data.cache import close_pool
 from app.faults import FAULTS
 from app.http import client
+from app.tools import voice
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("api")
@@ -83,6 +84,8 @@ async def run_agent(req: AskRequest) -> AsyncIterator[str]:
             "answer": final.get("answer"),
             "result": final.get("result"),
             "intent": final["intent"].model_dump(mode="json") if final.get("intent") else None,
+            # The UI resends this with edited costs, so a recalculation skips village matching.
+            "place": final["place"].model_dump() if final.get("place") else None,
         }
     )
 
@@ -97,3 +100,19 @@ async def ask(req: AskRequest) -> StreamingResponse:
             "X-Accel-Buffering": "no",
         },  # don't let proxies buffer
     )
+
+
+@app.post("/transcribe")
+async def transcribe(audio: UploadFile) -> dict[str, str]:
+    """Hindi speech -> text. The UI puts the text in the box, so the farmer can fix it."""
+    data = await audio.read()
+    if not data:
+        raise HTTPException(400, "empty audio")
+    if len(data) > 5_000_000:  # Sarvam's REST endpoint is for clips under 30 s
+        raise HTTPException(413, "recording too long")
+    res = await voice.transcribe(
+        data, audio.filename or "audio.webm", audio.content_type or "application/octet-stream"
+    )
+    if res.data is None:
+        raise HTTPException(502, f"speech-to-text failed: {res.error}")
+    return {"text": res.data}
