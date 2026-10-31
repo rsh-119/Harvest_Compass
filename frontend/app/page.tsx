@@ -106,7 +106,7 @@ export default function Home() {
         <h2 className="font-display text-4xl font-bold sm:text-5xl">What the farmer gets</h2>
         <dl className="mt-10 grid gap-x-12 gap-y-10 md:grid-cols-2">
           {GETS.map((g) => (
-            <div key={g.title} className="border-l-4 border-marigold-400 pl-5">
+            <div key={g.title}>
               <dt className="font-display text-2xl font-bold text-ink-900">{g.title}</dt>
               <dd className="mt-2 text-lg text-ink-700">{g.en}</dd>
             </div>
