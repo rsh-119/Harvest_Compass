@@ -27,3 +27,16 @@ def test_summary_counts_gains_regret_and_unrealisable() -> None:
 
 def test_summary_refuses_tiny_samples() -> None:
     assert "note" in summarise([_rec(10)], "today", 1.0)
+
+
+def test_request_log_summary() -> None:
+    from app.data.request_log import summarise
+
+    ev = [{"event": "plan"}, {"event": "repair"}]
+    assert summarise(ev, {"answer": "x", "result": {"invented_numbers": 0}}) == {
+        "outcome": "answer",
+        "fallback": True,
+        "invented": 0,
+    }
+    assert summarise([], {"clarify": {"hi": "?"}})["outcome"] == "clarify"
+    assert summarise([], {})["outcome"] == "error"

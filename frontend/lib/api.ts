@@ -101,6 +101,22 @@ export type Health = {
   test_switches: Record<string, string>;
 };
 
+export type Stats = {
+  days?: number;
+  requests: number;
+  p50_ms?: number;
+  p95_ms?: number;
+  fallback_rate?: number;
+  errors?: number;
+  invented_numbers?: number;
+};
+
+export async function stats(): Promise<Stats> {
+  const res = await fetch(`${API}/stats`);
+  if (!res.ok) throw new Error(`stats ${res.status}`);
+  return res.json();
+}
+
 /** Also wakes a sleeping free-tier backend. */
 export async function health(): Promise<Health> {
   const res = await fetch(`${API}/health`);

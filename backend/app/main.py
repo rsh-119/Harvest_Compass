@@ -3,6 +3,7 @@
 import base64
 import json
 import logging
+import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
@@ -15,6 +16,7 @@ from app.agent.graph import graph
 from app.agent.state import AskRequest
 from app.backtest import run_backtest as backtest
 from app.config import settings
+from app.data import request_log
 from app.data.cache import close_pool
 from app.faults import FAULTS
 from app.health import status as health_status
@@ -61,18 +63,26 @@ def _sse(payload: dict[str, Any]) -> str:
 async def run_agent(req: AskRequest) -> AsyncIterator[str]:
     """Stream trace events as they happen, then one 'final' event with the answer."""
     final: dict[str, Any] = {}
+    events: list[dict[str, Any]] = []
+    start = time.monotonic()
     try:
         async for mode, chunk in graph.astream({"request": req}, stream_mode=["custom", "values"]):
             if mode == "custom":
-                yield _sse(dict(chunk))  # type: ignore[arg-type]
+                events.append(dict(chunk))  # type: ignore[arg-type]
+                yield _sse(events[-1])
             else:
                 final = dict(chunk)  # type: ignore[arg-type]
     except Exception as e:  # show the failure in the trace instead of a silent broken stream
         log.exception("agent failed")
-        yield _sse(
-            {"event": "error", "en": f"Agent error: {type(e).__name__}: {e}", "hi": "कुछ गड़बड़ हो गई"}
-        )
+        err = {
+            "event": "error",
+            "en": f"Agent error: {type(e).__name__}: {e}",
+            "hi": "कुछ गड़बड़ हो गई",
+        }
+        await request_log.record(int((time.monotonic() - start) * 1000), [*events, err], {})
+        yield _sse(err)
         return
+    await request_log.record(int((time.monotonic() - start) * 1000), events, final)
     yield _sse(
         {
             "event": "final",
@@ -127,3 +137,9 @@ async def transcribe(audio: UploadFile) -> dict[str, str]:
 async def backtest_results() -> list[dict[str, Any]]:
     """Latest stored backtest run per crop (run offline with app.backtest.run_backtest)."""
     return await backtest.latest()
+
+
+@app.get("/stats")
+async def stats() -> dict[str, Any]:
+    """Real per-request numbers from request_log (last 7 days): p50/p95 time, fallback rate."""
+    return await request_log.stats()

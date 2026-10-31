@@ -6,6 +6,8 @@ import { useEffect, useRef, useState } from "react";
 import {
   ask,
   health,
+  stats,
+  type Stats,
   type Health,
   transcribe,
   type AskBody,
@@ -334,6 +336,10 @@ const SOURCE_HI: Record<string, string> = {
 };
 
 function Footer({ h, faults, setFaults }: { h: Health; faults: string[]; setFaults: (f: string[]) => void }) {
+  const [use, setUse] = useState<Stats | null>(null);
+  useEffect(() => {
+    stats().then(setUse).catch(() => setUse(null));
+  }, []);
   return (
     <footer className="mt-8 space-y-3 text-sm text-ink-600">
       <BacktestCard />
@@ -352,6 +358,13 @@ function Footer({ h, faults, setFaults }: { h: Health; faults: string[]; setFaul
             </li>
           ))}
         </ul>
+        {use && use.requests > 0 && (
+          <p className="mt-2 text-xs text-ink-500">
+            पिछले {use.days} दिन: {use.requests} सवाल · आधे {((use.p50_ms ?? 0) / 1000).toFixed(1)} s में, 95%{" "}
+            {((use.p95_ms ?? 0) / 1000).toFixed(1)} s में · रास्ता बदला (repair){" "}
+            {Math.round((use.fallback_rate ?? 0) * 100)}% · गढ़े गए अंक पकड़े: {use.invented_numbers}
+          </p>
+        )}
       </details>
       <details className="rounded-2xl border border-ink-200 bg-white p-4">
         <summary className="cursor-pointer font-semibold text-ink-800">
