@@ -65,7 +65,7 @@ Each node streams trace events to the frontend over Server-Sent Events, so the u
 | Database | PostgreSQL (Neon), psycopg 3: response cache and backtest results |
 | LLM | `deepseek/deepseek-v4.1-flash` via OpenRouter |
 | Speech | Sarvam AI: `saaras:v4` speech-to-text (23 languages), `bulbul:v4-flash` text-to-speech (9 languages) |
-| Hosting | Render (backend, Docker), Vercel (frontend) |
+| Hosting | Google Cloud Run, Mumbai (backend, Docker), Vercel (frontend) |
 
 ## Project structure
 
@@ -164,9 +164,17 @@ uv run python -m scripts.warm                   # pre-cache prices and mandi loc
 
 ## Deployment
 
-- **Backend:** Render web service, root `backend`, Docker. Set the environment variables above.
+- **Backend:** Google Cloud Run, region `asia-south1` (Mumbai), built from `backend/Dockerfile`:
+  ```bash
+  cd backend
+  gcloud run deploy harvest-compass-api --source . --region asia-south1 \
+    --allow-unauthenticated --env-vars-file env.yaml \
+    --memory 512Mi --min-instances 0 --max-instances 2 --timeout 300
+  ```
+  `env.yaml` holds the environment variables above (not committed). `render.yaml` is kept as an alternative Render blueprint.
 - **Frontend:** Vercel, root `frontend`, with `NEXT_PUBLIC_API_URL` pointing to the backend.
-- `/health` runs lightweight checks against each source (cached for 60 s) and can be polled to keep a free instance awake.
+- **data.gov.in from cloud hosts:** the API refuses requests from cloud data-centre IPs (403 from Cloud Run, connection refused from Render). The backend then serves the latest cached prices with their date. Run `uv run python -m scripts.warm` from a machine in India to refresh the shared cache.
+- `/health` runs lightweight checks against each source (cached for 60 s); error messages mask API keys.
 - Rate limits: 10 paid requests per minute per client, 300 per hour overall.
 
 ## Limitations
