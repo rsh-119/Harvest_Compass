@@ -40,6 +40,7 @@ class Params(BaseModel):
         default=0, ge=0
     )  # hammali/weighing, set per mandi by bye-law
     bori_kg: float | None = Field(default=None, gt=0)  # no default: we ask
+    qty_confirmed: bool = False  # farmer confirmed an unusually large quantity
     radius_km: float = Field(default=settings.radius_km, gt=0, le=300)
 
 
@@ -50,6 +51,7 @@ class AskRequest(BaseModel):
     place: Place | None = None  # village the farmer confirmed
     params: Params = Params()
     faults: list[str] = []
+    speak: bool = False  # also send the reply as Hindi audio
 
 
 class Mandi(BaseModel):

@@ -62,6 +62,8 @@ SCHEMA = {
     "required": ["crop_word", "quantity", "unit", "village", "already_harvested", "has_storage"],
 }
 
+LARGE_QTY_Q = 2000  # 200 tonnes: far above a typical MP farm's harvest, worth a check
+
 PROMPT = """You extract a farmer's request (Hindi, Hinglish or English) into the set_intent tool.
 Today is {today}. Convert relative dates (aaj, kal, parson, agle hafte, 5 din baad) to ISO dates.
 Number words count: "chalis" = 40. "bori"/"bora" = unit bori. Transliterate the village to Latin.
@@ -133,7 +135,13 @@ async def match_village(name: str, district: str | None) -> tuple[Place | None, 
         status=res.status,
         source_url=res.source_url,
     )
-    cands = [p for p in res.data or [] if settings.state.lower() in p.display_name.lower()]
+    # "Ujjain, Madhya Pradesh, India" is the district, not a place to drive from. Settlements
+    # always carry more parts (tahsil, district...), so short names don't count as rivals.
+    cands = [
+        p
+        for p in res.data or []
+        if settings.state.lower() in p.display_name.lower() and p.display_name.count(",") > 2
+    ]
     scored = sorted(
         ((fuzz.WRatio(name.lower(), p.name.lower()), p) for p in cands), key=lambda x: -x[0]
     )
@@ -188,6 +196,14 @@ async def understand(state: AgentState) -> dict[str, Any]:
                 "एक बोरी में कितने किलो माल है?", "How many kg in one bori?", intent, needs="bori_kg"
             )
         return _ask("कितना माल है? (क्विंटल में)", "How much (quintals)?", intent)
+    if qty > LARGE_QTY_Q and not req.params.qty_confirmed:
+        # Often "kilo" heard as "quintal". Confirm instead of planning 400 truck trips.
+        return _ask(
+            f"क्या सच में {qty:g} क्विंटल माल है? सही है तो 'हाँ' दबाएँ, नहीं तो सही मात्रा बताएँ।",
+            f"Really {qty:g} quintals? Confirm or correct.",
+            intent,
+            needs="confirm_qty",
+        )
     place: Place | None = req.place
     if place is None:
         if not intent.village:

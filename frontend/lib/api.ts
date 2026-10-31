@@ -4,7 +4,7 @@ export const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 export type Place = { name: string; display_name: string; lat: number; lon: number };
 // Vehicle hire has no default: the agent asks the farmer (see understand.py).
-export type Params = { rate_per_km?: number; capacity_q?: number; other_charges_per_q: number; bori_kg?: number };
+export type Params = { rate_per_km?: number; capacity_q?: number; other_charges_per_q: number; bori_kg?: number; qty_confirmed?: boolean };
 
 export type TraceEvent = {
   event: string;
@@ -89,7 +89,21 @@ export type AskBody = {
   place?: Place | null;
   params?: Params;
   faults?: string[];
+  speak?: boolean;
 };
+
+export type Health = {
+  status: "ok" | "degraded";
+  sources: Record<string, { ok: boolean; ms?: number; error?: string; note?: string }>;
+  test_switches: Record<string, string>;
+};
+
+/** Also wakes a sleeping free-tier backend. */
+export async function health(): Promise<Health> {
+  const res = await fetch(`${API}/health`);
+  if (!res.ok) throw new Error(`health ${res.status}`);
+  return res.json();
+}
 
 /** POST /ask and read the SSE stream (EventSource can't POST, so we parse it ourselves). */
 export async function ask(body: AskBody, onEvent: (e: TraceEvent | Final) => void): Promise<void> {

@@ -1,9 +1,11 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ask,
+  health,
+  type Health,
   transcribe,
   type AskBody,
   type Clarify,
@@ -65,14 +67,41 @@ export default function Home() {
   const [recording, setRecording] = useState(false);
   const recorder = useRef<MediaRecorder | null>(null);
   const lastText = useRef("");
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [server, setServer] = useState<"checking" | "waking" | "up" | "down">("checking");
+  const [srcHealth, setSrcHealth] = useState<Health | null>(null);
+  const [faults, setFaults] = useState<string[]>([]);
+
+  useEffect(() => {
+    // Free hosting sleeps when idle: say so if the first ping is slow, instead of looking broken.
+    const slow = setTimeout(() => setServer((s) => (s === "checking" ? "waking" : s)), 2500);
+    health()
+      .then((h) => {
+        setSrcHealth(h);
+        setServer("up");
+      })
+      .catch(() => setServer("down"))
+      .finally(() => clearTimeout(slow));
+    return () => clearTimeout(slow);
+  }, []);
+
+  function play(url: string) {
+    new Audio(url).play().catch(() => {}); // autoplay blocked: the speaker button still works
+  }
 
   async function run(body: AskBody) {
     setBusy(true);
     setError(null);
     setTrace([]);
+    setAudioUrl(null);
     try {
-      await ask({ ...body, params: { ...params, ...body.params } }, (e) => {
-        if (e.event === "final") {
+      await ask({ ...body, params: { ...params, ...body.params }, faults, speak: true }, (e) => {
+        if (e.event === "audio") {
+          const bytes = Uint8Array.from(atob(String((e as TraceEvent).wav_b64)), (c) => c.charCodeAt(0));
+          const url = URL.createObjectURL(new Blob([bytes], { type: "audio/wav" }));
+          setAudioUrl(url);
+          play(url);
+        } else if (e.event === "final") {
           const f = e as Final;
           setFinal(f);
           setPending(f.clarify);
@@ -113,6 +142,12 @@ export default function Home() {
 
   function confirmPlace(p: Place) {
     run({ text: lastText.current, previous: pending?.intent, place: p });
+  }
+
+  function confirmQty() {
+    const p = { ...params, qty_confirmed: true };
+    setParams(p);
+    run({ text: lastText.current, previous: pending?.intent, place: pending?.place, params: p });
   }
 
   function recalc() {
@@ -158,12 +193,32 @@ export default function Home() {
       <header>
         <h1 className="text-3xl font-bold text-leaf-800">हार्वेस्ट कम्पास</h1>
         <p className="mt-1 text-lg text-ink-600">कौन सी मंडी, कौन सा दिन — लाइव भाव और मौसम से</p>
+        {server === "waking" && (
+          <p className="mt-2 rounded-lg bg-amber-50 p-2 text-sm text-amber-900" role="status">
+            ⏳ सर्वर जाग रहा है, लगभग 1 मिनट लग सकता है… (free server waking up)
+          </p>
+        )}
+        {server === "down" && (
+          <p className="mt-2 rounded-lg bg-red-50 p-2 text-sm text-red-800">सर्वर से संपर्क नहीं हो पाया। (backend unreachable)</p>
+        )}
       </header>
 
       <section className="mt-6 rounded-2xl border border-ink-200 bg-white p-4 shadow-sm">
         {pending && (
           <div className="mb-3 rounded-xl bg-amber-50 p-3 text-amber-950" role="status">
-            <p className="text-lg font-semibold">{pending.hi}</p>
+            <p className="text-lg font-semibold">
+              {pending.hi}
+              {audioUrl && <ListenButton url={audioUrl} />}
+            </p>
+            {pending.needs === "confirm_qty" && (
+              <button
+                onClick={confirmQty}
+                disabled={busy}
+                className="mt-2 rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm hover:bg-amber-100"
+              >
+                हाँ, मात्रा सही है
+              </button>
+            )}
             {pending.options && (
               <div className="mt-2 flex flex-wrap gap-2">
                 {pending.options.map((p) => (
@@ -229,7 +284,10 @@ export default function Home() {
 
       {final?.answer && r && (
         <section className="mt-6 rounded-2xl border-2 border-leaf-600 bg-leaf-50 p-4" aria-live="polite">
-          <p className="text-xl leading-relaxed text-ink-900">{final.answer}</p>
+          <p className="text-xl leading-relaxed text-ink-900">
+            {final.answer}
+            {audioUrl && <ListenButton url={audioUrl} />}
+          </p>
           {r.confidence && (
             <p className="mt-3">
               <span className={`rounded-full px-3 py-1 text-sm font-semibold ${CONF_CLS[r.confidence]}`}>
@@ -246,7 +304,77 @@ export default function Home() {
       {r?.best && final?.place && (
         <ResultCard r={r} place={final.place} params={params} setParams={setParams} recalc={recalc} busy={busy} />
       )}
+
+      {srcHealth && <Footer h={srcHealth} faults={faults} setFaults={setFaults} />}
     </main>
+  );
+}
+
+function ListenButton({ url }: { url: string }) {
+  return (
+    <button
+      onClick={() => new Audio(url).play().catch(() => {})}
+      className="ml-2 rounded-full bg-white px-2 py-0.5 align-middle text-base shadow-sm ring-1 ring-ink-200 hover:bg-ink-50"
+      aria-label="जवाब सुनें"
+    >
+      🔊
+    </button>
+  );
+}
+
+const SOURCE_HI: Record<string, string> = {
+  mandi_prices: "मंडी भाव (data.gov.in)",
+  weather: "मौसम (Open-Meteo)",
+  routing: "सड़क दूरी (OSRM)",
+  geocoding: "नक्शा खोज (Nominatim)",
+  database: "कैश डेटाबेस",
+  llm: "भाषा मॉडल",
+  voice: "आवाज़ (Sarvam)",
+};
+
+function Footer({ h, faults, setFaults }: { h: Health; faults: string[]; setFaults: (f: string[]) => void }) {
+  return (
+    <footer className="mt-8 space-y-3 text-sm text-ink-600">
+      <details className="rounded-2xl border border-ink-200 bg-white p-4">
+        <summary className="cursor-pointer font-semibold text-ink-800">
+          स्रोत स्थिति {h.status === "ok" ? "✅" : "⚠️"} <span className="font-normal text-ink-500">(source health)</span>
+        </summary>
+        <ul className="mt-2 space-y-1">
+          {Object.entries(h.sources).map(([k, v]) => (
+            <li key={k}>
+              {v.ok ? "✅" : "❌"} {SOURCE_HI[k] ?? k}
+              <span className="text-xs text-ink-500">
+                {v.ms != null ? ` · ${v.ms} ms` : v.note ? ` · ${v.note}` : ""}
+                {v.error ? ` · ${v.error}` : ""}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </details>
+      <details className="rounded-2xl border border-ink-200 bg-white p-4">
+        <summary className="cursor-pointer font-semibold text-ink-800">
+          टेस्ट स्विच {faults.length > 0 && `(${faults.length} चालू)`}{" "}
+          <span className="font-normal text-ink-500">(demo: pretend a source is down)</span>
+        </summary>
+        <p className="mt-1 text-xs text-ink-500">
+          चुना गया स्रोत अगले सवाल में बुलाया नहीं जाएगा, ताकि आप एजेंट को रास्ता बदलते देख सकें। कोई नकली डेटा नहीं भरा जाता।
+        </p>
+        {Object.entries(h.test_switches).map(([k, label]) => (
+          <label key={k} className="mt-1 flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={faults.includes(k)}
+              onChange={(e) => setFaults(e.target.checked ? [...faults, k] : faults.filter((f) => f !== k))}
+            />
+            {label}
+          </label>
+        ))}
+      </details>
+      <p className="text-xs text-ink-500">
+        Weather data by <a className="underline" href="https://open-meteo.com/">Open-Meteo.com</a> (CC BY 4.0) · Prices:
+        data.gov.in (OGD) · Maps © OpenStreetMap contributors
+      </p>
+    </footer>
   );
 }
 

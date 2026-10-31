@@ -1,5 +1,6 @@
 """FastAPI entry point. Routes stay thin; logic lives in agent/, tools/ and scoring/."""
 
+import base64
 import json
 import logging
 from collections.abc import AsyncIterator
@@ -15,6 +16,7 @@ from app.agent.state import AskRequest
 from app.config import settings
 from app.data.cache import close_pool
 from app.faults import FAULTS
+from app.health import status as health_status
 from app.http import client
 from app.ratelimit import limit
 from app.tools import voice
@@ -40,20 +42,12 @@ app.add_middleware(
 
 
 @app.get("/health")
-def health() -> dict[str, object]:
-    """Which sources are configured. Live per-source checks are added in M7."""
+async def health() -> dict[str, object]:
+    """Live status of each source (real tiny calls, remembered 60 s). Also the warm-up ping."""
+    sources = await health_status()
     return {
-        "status": "ok",
-        "sources": {
-            "mandi_prices": bool(settings.data_gov_in_api_key),
-            "voice": bool(settings.sarvam_api_key),
-            "llm": bool(settings.openrouter_api_key),
-            "database": bool(settings.database_url),
-            # Keyless public services.
-            "weather": True,
-            "routing": True,
-            "geocoding": True,
-        },
+        "status": "ok" if all(v["ok"] for v in sources.values()) else "degraded",
+        "sources": sources,
         "llm_model": settings.llm_model,
         "test_switches": FAULTS,
     }
@@ -89,6 +83,15 @@ async def run_agent(req: AskRequest) -> AsyncIterator[str]:
             "place": final["place"].model_dump() if final.get("place") else None,
         }
     )
+    # Speak only what the agent itself said (no public TTS endpoint to drain credits).
+    # Sent after "final", so the farmer reads the text while the audio is made.
+    spoken = final.get("answer") or (final.get("clarify") or {}).get("hi")
+    if spoken and req.speak:
+        audio = await voice.speak(spoken)
+        if audio.data:
+            yield _sse({"event": "audio", "wav_b64": base64.b64encode(audio.data).decode()})
+        else:
+            yield _sse({"event": "audio_failed", "en": f"Voice reply failed: {audio.error}"})
 
 
 @app.post("/ask", dependencies=[Depends(limit)])
