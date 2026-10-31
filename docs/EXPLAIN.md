@@ -99,3 +99,13 @@ Run: `cd frontend && npm run dev` (needs the backend on :8000, or set `NEXT_PUBL
 - **Vehicle hire is asked, never assumed.** `understand` asks for ₹/km and quintals per trip if neither the farmer's words nor the UI edit boxes give them. The clarifying question goes back with the answer (`AskRequest.question`), so "40, 30" is read right. The confirmed village goes back too (`clarify.place`).
 - **`app/ratelimit.py`**: sliding windows in memory: 10/min per visitor, 300/hour total, on the two routes that spend credits. The visitor IP comes from `CF-Connecting-IP` (Render is behind Cloudflare), else the right-most `X-Forwarded-For` entry.
 - **`backend/Dockerfile`**: python 3.11 slim + uv, installs the locked deps only, runs uvicorn on `$PORT`.
+
+## M6–M8 additions
+- **Spoken reply** (`main.py`): after the `final` event, the server sends the answer (or the question) to Sarvam TTS and streams `{"event": "audio", "wav_b64": ...}`. There's no public TTS endpoint, so nobody can use our credits to speak arbitrary text. The UI plays it and shows 🔊 to replay.
+- **`app/health.py`**: `/health` makes tiny real calls (DB `SELECT 1`, data.gov.in limit 1, Open-Meteo 1 day, OSRM same point) concurrently, remembered for 60 s. The UI footer shows the result; the cron ping keeps the free server awake.
+- **Test switches** in the UI footer: send `faults` with the next question; the agent skips that source and shows its repair.
+- **Large quantity** (`understand.py`): over 2000 q asks for confirmation (usually "kilo" heard as "quintal").
+- **Village matching** (`understand.match_village`), in order: settlement-only search with the Latin name; the farmer's own Devanagari words; "X, X" when no district; finally a one-tap tahsil question. A town also matches its tahsil name. Two equally good places more than 10 km apart → ask.
+- **Name check** (`explain.py`): the Hindi answer must contain the best mandi's exact name, as well as passing the number check, or it's retried / templated.
+- **`app/backtest/run_backtest.py`**: replays the last 60 days for 30 real villages with the agent's own audit and ranking, scores the next day's real price against the nearest mandi and a hindsight oracle, compares two ranking strategies over a transport sweep, and stores results in `backtest_runs`. `GET /backtest` → the UI's results card.
+- **`scripts/grounding.py`**: 20 questions through the whole agent; counts invented numbers, Hindi, length and timing per model (`--model`).

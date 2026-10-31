@@ -214,3 +214,73 @@ Playwright on localhost, 390×844:
 - **Vercel** → New Project → this repo, root directory `frontend`. Env var: `NEXT_PUBLIC_API_URL=https://<your-service>.onrender.com`.
 - **cron-job.org** → GET `https://<your-service>.onrender.com/health` every 10 minutes (keeps the free instance awake).
 - **OpenRouter** dashboard → set a credit limit on the key.
+
+## Repo
+- GitHub: https://github.com/rsh-119/Harvest_Compass (pushed 31 Oct; history scanned, no secrets or .env)
+
+## M6 — Voice (31 Oct)
+**Acceptance criteria**
+- [ ] Hindi speech in → correct intent for 8 of 10 team recordings. **Waiting for recordings** (team, later). Sheet: `docs/VOICE_TEST.md`.
+- [x] Spoken Hindi reply ≤ 20 s. The server speaks only the agent's own text (answer or question) and streams it as an `audio` SSE event right after `final`. No public TTS endpoint, so credits can't be drained. The UI auto-plays (🔊 replays it). Answers are ≤ 60 words (grounding test: max 51 words).
+- [x] Text fallback when voice fails: STT error → "please type"; mic denied → "you can type"; TTS failure → `audio_failed` event, text stays.
+
+## M7 — Robustness, counterfactual, fault injection (31 Oct)
+- [x] `/health` shows **live** source status: tiny real calls to the database, data.gov.in, Open-Meteo and OSRM, run together and remembered 60 s. Nominatim isn't probed (policy); the LLM and voice APIs report "configured". Measured: all OK (DB 2.3 s cold, data.gov.in 0.7 s, Open-Meteo 0.6 s, OSRM 0.75 s).
+- [x] Fault toggles in the UI ("टेस्ट स्विच"). CLI evidence with `--fault mandi_current --fault weather_gfs`: two repair lines, confidence medium.
+- [x] Edge cases:
+  - unknown crop (wheat → "only soybean/onion")
+  - unknown village → asks; tahsil-only towns → one-tap tahsil question
+  - no fresh data → audit rejects stale, "no reliable mandi" answer
+  - API timeout → retry, then stale cache or fallback
+  - empty audio → 400
+  - very large quantity → 50,000 q asks "क्या सच में…?" with a confirm button
+- [x] "Wait N days": 50 q soybean, Ujjain, wait 3 → trend +₹14/day ⇒ +₹42/q, rain risk 4%, "trend, not forecast".
+- [ ] Deployed backend + frontend: **needs team logins** (Render, Vercel). Repo, Dockerfile and steps are ready (see above).
+- Village matching fixes found by the grounding test:
+  - Nominatim jsonv2 `category=place` + `type∈{city,town,village,hamlet}` only, so no district centroids (Shajapur's was 35 km from the town), roads or stations.
+  - Retry with the farmer's Devanagari words, then "X, X".
+  - A town also matches its tahsil name (Mhow = "Dr. Ambedkar Nagar").
+  - A lone town name in the district slot is used as the place.
+
+## M7b — Link hardening (code side done)
+- [x] Waking-up state in the UI if `/health` is slow; backend-unreachable message.
+- [x] Rate limit 10/min per visitor + 300/hour total; CORS from `FRONTEND_ORIGIN`.
+- [x] Mic works only on HTTPS (Vercel and Render are HTTPS); text works if mic is denied.
+- [ ] Team: Render + Vercel + cron-job.org (/health every 10 min) + OpenRouter spending cap. Then a smoke test from another device and network (3 questions).
+- Free-tier notes to verify when signing up: Render free web services sleep after idle (hence the ping); Neon free tier; Sarvam and OpenRouter credit balances must last to **5 Nov 2026**.
+
+## M8 — Backtest and metrics (31 Oct)
+**Backtest** `app/backtest/run_backtest.py`:
+- 30 real OSM villages around Indore/Ujjain/Dewas/Dhar (0 dropped), 60 days (31 Aug–30 Oct 2026), real data.gov.in history (cached; 0 extra API calls).
+- Decide on day t with the agent's own `audit_mandis` + `rank` on rows dated ≤ t; realise at t+1 at the chosen mandi (same variety/grade).
+- Baseline: nearest reporting mandi. Oracle: best net in hindsight.
+- Transport swept (₹0.5/1/2 per q-km, **assumed**). Stored in Postgres `backtest_runs`.
+
+| Crop | Strategy | Mean gain ₹/q (0.5 / 1 / 2) | % days gain > 0 (at 1) | Mean regret vs oracle (at 1) |
+|---|---|---|---|---|
+| Onion | today's price | +426 / +393 / +378 | 45.6% | 380 |
+| Onion | 7-day median | +540 / +482 / +429 | 46.8% | 315 |
+| Soybean | today's price | +27 / −32 / −73 | 34.6% | 423 |
+| Soybean | 7-day median | +61 / +15 / −4 | 38.3% | 358 |
+
+- Median gain is ₹0 in most settings: in many decisions the choice is the nearest mandi, or prices are equal.
+- About 30–40% of decisions are unscorable (the chosen mandi doesn't report the next day).
+- Losing examples come from overnight drops at the chosen mandi, e.g. Indore APMC 6500 → 3800 on 9–10 Oct.
+- **Finding:** choosing the mandi pays for onion. Soybean prices are nearly uniform across MP. Ranking on a 7-day median beats today's single price everywhere (winner's curse on one-day spikes). **Decision for the team:** switch the live ranking to the 7-day median? (M0 decision #1 says rank on today's modal; not changed without your OK.)
+
+**Grounding** `scripts/grounding.py` (20 varied Hindi/Hinglish questions, full agent):
+- deepseek-v4.1-flash (final): 19/20 answered (1 correct tahsil question), **0 invented numbers**, 0 non-Hindi, 0 "लाभ", 0 over 60 words, p50 11.4 s, p95 15.3 s.
+- openai/gpt-5.6-terra: 19/20, 0 invented numbers, p50 11.6 s, but it **wrote mandi names in Devanagari and turned Badnagar into "बदनावर" (Badnawar, another town)**. Added a name check (answer must contain the exact mandi name, else retry/template).
+- anthropic/claude-sonnet-5.5: could not run. The provider rejects forced `tool_choice` ("type tool and any are not supported for this model").
+- **Demo model: deepseek-v4.1-flash** (decision #7: grounding + Hindi check on it and a stronger model).
+
+**Reliability:** every tool call logs status (live/cache/stale_cache/error) and ms in the trace; LLM tokens and cost per call are logged. Per-request p50/p95 from the grounding run are above.
+
+## M9 — Submission pack (31 Oct)
+- [x] README: problem, solution, setup, env vars, Mermaid architecture, data sources + licences, tests/backtest, limitations (team names to add)
+- [x] `docs/EXPLAIN.md` complete (team to read)
+- [x] Slide content: `docs/SLIDES.md` (6 slides)
+- [ ] Demo video: script in `docs/DEMO.md`; record from the deployed app (team)
+- [x] Final grep: no mock/sample/dummy data files, no hardcoded prices, no secrets ("sample" hits are the statistics term only)
+
+**Status: everything that doesn't need a team account or recordings is done.**

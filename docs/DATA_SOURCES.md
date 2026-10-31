@@ -86,3 +86,14 @@ data.gov.in spells some mandi towns differently from OpenStreetMap (Haatpipliya/
 
 ## Sarvam STT input
 - Browser MediaRecorder produces WebM/Opus. Sarvam docs list WebM as supported, and the REST endpoint is meant for clips under 30 s, so the UI stops at 25 s.
+
+## Nominatim for villages: settlements only (31 Oct 2026)
+- `format=jsonv2` returns `category`/`type`. We keep `category=place` with `type` in city/town/village/hamlet for villages.
+- Verified: "Shajapur, Madhya Pradesh, India" returns only `boundary/administrative` (state_district) at 23.417, 76.607, ~35 km from the town. "Shajapur, Shajapur, …" returns `place/town` at 23.424, 76.283.
+- `featureType=settlement` is no help: the docs say it covers "from 'state' down to 'neighbourhood'", which includes districts.
+- Some towns exist only as a tahsil boundary (Badnagar and Mahidpur in Ujjain). We offer the tahsil as a confirmation question.
+- Mhow's OSM name is "Dr. Ambedkar Nagar" (`place/town`, in "Mhow Tahsil").
+
+## OpenRouter models tested (31 Oct 2026, from GET /api/v1/models)
+- `deepseek/deepseek-v4.1-flash` (demo), `openai/gpt-5.6-terra`, `google/gemini-3.8-flash`: forced `tool_choice` works.
+- `anthropic/claude-sonnet-5.5`: 400 "tool_choice: type tool and any are not supported for this model" (Bedrock / Claude Platform on AWS).
