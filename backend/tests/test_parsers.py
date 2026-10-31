@@ -139,3 +139,35 @@ def test_any_listed_crop_is_matched() -> None:
     assert normalize_crop("Chickpea") == "Bengal Gram(Gram)(Whole)"
     assert normalize_crop("saffron") is None  # not in the price list: say so, don't guess
     assert "Tomato" in PERISHABLE and "Wheat" not in PERISHABLE
+
+
+def test_new_crop_or_village_starts_a_new_question() -> None:
+    from app.agent.nodes.understand import _merge, is_new_question
+    from app.agent.state import Intent
+
+    old = Intent(crop="Soyabean", quantity=40, village="Sanwer", district="Indore", capacity_q=40)
+    paddy = Intent(crop="Paddy(Common)", quantity=50, village="Karnal", capacity_q=50)
+    assert is_new_question(old, paddy)
+    assert _merge(old, paddy).district is None  # Indore doesn't leak into the Karnal question
+    # Answering "which village?" with just a name fills the gap; it isn't a new question.
+    assert not is_new_question(Intent(crop="Soyabean", village="Sanver"), Intent(village="Sanwer"))
+    assert _merge(old, Intent(rate_per_km=30)).capacity_q == 40
+
+
+def test_several_far_apart_exact_matches_are_all_offered() -> None:
+    from app.agent.nodes.understand import _plausible
+    from app.tools.geocode import Place
+
+    up = Place(name="Rampur", display_name="Rampur, Uttar Pradesh", lat=28.80, lon=79.03)
+    up_area = Place(name="Rampur", display_name="Rampur, UP (area)", lat=28.81, lon=79.02)
+    hp = Place(name="Rampur", display_name="Rampur, Shimla, Himachal Pradesh", lat=31.45, lon=77.63)
+    got = _plausible([(100, up), (100, up_area), (100, hp), (70, up)])
+    assert got == [up, hp]  # the duplicate within 10 km and the weak match are dropped
+
+
+def test_lasalgaon_sub_yards_are_their_own_towns() -> None:
+    from app.data.synonyms import sub_yard_town
+
+    assert sub_yard_town("Lasalgaon(Vinchur)") == ("Vinchur", "Nashik")
+    assert sub_yard_town("Lasalgaon (Niphad)") == ("Niphad", "Nashik")
+    assert sub_yard_town("APMC Lasalgaon") is None

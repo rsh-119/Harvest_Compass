@@ -9,7 +9,7 @@ from urllib.parse import urlencode
 from pydantic import BaseModel
 
 from app.data.cache import Sourced, cached
-from app.data.synonyms import DISTRICT_ALIASES, MANDI_TOWN_ALIASES, market_town
+from app.data.synonyms import DISTRICT_ALIASES, MANDI_TOWN_ALIASES, market_town, sub_yard_town
 from app.http import request_json
 
 URL = "https://nominatim.openstreetmap.org/search"
@@ -102,8 +102,9 @@ async def locate_mandi(market: str, district: str, state: str) -> Sourced[Place 
     """Try 'town, district, state'. If that finds nothing, try 'town, state' and accept the
     result only if it lies in the right district. data=None means unresolved: the mandi is
     excluded and named, never guessed."""
-    town = market_town(market)
-    town, dist_fix = MANDI_TOWN_ALIASES.get(town, (town, None))
+    sub = sub_yard_town(market)
+    town = sub[0] if sub else market_town(market)
+    town, dist_fix = MANDI_TOWN_ALIASES.get(town, (town, sub[1] if sub else None))
     dist = dist_fix or DISTRICT_ALIASES.get(district, district)
     first = await search(f"{town}, {dist}, {state}, India", limit=1)
     if first.data:

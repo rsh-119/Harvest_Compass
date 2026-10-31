@@ -78,9 +78,24 @@ Transliterate the village to Latin using its usual English spelling where you kn
 Only fill what the farmer actually said; use null otherwise. Never guess."""
 
 
-def _merge(old: Intent | None, new: Intent) -> Intent:
-    """A clarification answer only fills gaps. It doesn't wipe what we already knew."""
+def is_new_question(old: Intent | None, new: Intent) -> bool:
+    """A different crop, or a different village said together with a crop or quantity, is a new
+    question: nothing from the old one (vehicle, place, dates) may carry over. A bare village
+    name is an answer to "which village?", so it isn't."""
     if old is None:
+        return False
+    if new.crop and old.crop and new.crop != old.crop:
+        return True
+    moved = bool(
+        new.village and old.village and new.village.strip().lower() != old.village.strip().lower()
+    )
+    return moved and bool(new.crop or new.quantity)
+
+
+def _merge(old: Intent | None, new: Intent) -> Intent:
+    """A clarification answer only fills gaps. It doesn't wipe what we already knew. Values in
+    the new message always win; a new question starts from scratch."""
+    if old is None or is_new_question(old, new):
         return new
     data = old.model_dump()
     data.update({k: v for k, v in new.model_dump().items() if v not in (None, False)})
@@ -122,6 +137,24 @@ async def extract(text: str, question: str | None = None) -> Intent:
     )
 
 
+def summary(i: Intent) -> str:
+    """'soybean, 40 quintal, Sanwer (Indore), ₹30/km, 40 q per trip' for the trace."""
+    dates = None
+    if i.ready_from:
+        dates = f"ready {i.ready_from}" + (f" to {i.ready_to}" if i.ready_to else "")
+    parts = [
+        i.crop_word or i.crop,
+        f"{i.quantity:g} {i.unit or 'quintal'}" if i.quantity else None,
+        f"{i.village} ({i.district})" if i.village and i.district else i.village or i.district,
+        dates,
+        f"₹{i.rate_per_km:g}/km" if i.rate_per_km else None,
+        f"{i.capacity_q:g} q per trip" if i.capacity_q else None,
+        "has storage" if i.has_storage else None,
+        f"wait {i.wait_days} days" if i.wait_days else None,
+    ]
+    return ", ".join(x for x in parts if x) or "nothing yet"
+
+
 def to_quintals(i: Intent, bori_kg: float | None) -> float | None:
     if i.quantity is None or i.quantity <= 0:
         return None
@@ -146,6 +179,16 @@ def _score(name: str, p: Place) -> float:
     return float(s)
 
 
+def _plausible(scored: list[tuple[float, Place]]) -> list[Place]:
+    """Distinct good matches: score 90+, and more than 10 km from each other (OSM often lists
+    one place twice, as the town and its tahsil area)."""
+    out: list[Place] = []
+    for s, p in scored:
+        if s >= 90 and all(haversine_km((p.lat, p.lon), (q.lat, q.lon)) > 10 for q in out):
+            out.append(p)
+    return out
+
+
 async def match_village(
     name: str, district: str | None, as_said: str | None = None
 ) -> tuple[Place | None, list[Place]]:
@@ -159,9 +202,14 @@ async def match_village(
         queries.append(", ".join(p for p in (as_said, district, "India") if p))
     if not district:
         queries.append(f"{name}, {name}, India")
+    found: dict[str, Place] = {}
     for q in queries:
-        res = await search_settlements(q, limit=5)
-        if res.data:
+        res = await search_settlements(q, limit=10)
+        for pl in res.data or []:
+            found.setdefault(pl.display_name, pl)
+        # With a district the first hit is the answer. Without one, "Rampur, India" returns
+        # only the best-known Rampur; the other queries surface the rest, so we try them all.
+        if found and district:
             break
     emit(
         "tool_call",
@@ -171,7 +219,7 @@ async def match_village(
         status=res.status,
         source_url=res.source_url,
     )
-    cands = [p for p in res.data or [] if state_of(p.display_name)]  # anywhere in India
+    cands = [p for p in found.values() if state_of(p.display_name)]  # anywhere in India
     scored = sorted(((_score(name, p), p) for p in cands), key=lambda x: -x[0])
     if not scored:
         # Some towns exist in OSM only as their tahsil (Badnagar, Mahidpur). Offer the tahsil
@@ -188,10 +236,11 @@ async def match_village(
     # are the same place, so they don't make the answer ambiguous.
     others = [s for s, p in scored[1:] if haversine_km((best.lat, best.lon), (p.lat, p.lon)) > 10]
     runner = others[0] if others else 0
-    # Two places with equally good names (MP has many "Rampur"s) are ambiguous: ask, don't pick.
+    # Two places with equally good names (India has many "Rampur"s) are ambiguous: ask, don't pick.
     if best_score >= 90 and best_score - runner >= 10:
         return best, []
-    return None, [p for s, p in scored[:3] if s >= 60]
+    plausible = _plausible(scored)
+    return None, plausible[:5] if len(plausible) > 1 else [p for s, p in scored[:3] if s >= 60]
 
 
 async def _ask(
@@ -211,10 +260,12 @@ async def _ask(
 
 async def understand(state: AgentState) -> dict[str, Any]:
     req = state["request"]
-    intent = _merge(req.previous, await extract(req.text, req.question))
+    said = await extract(req.text, req.question)
+    fresh = is_new_question(req.previous, said)
+    intent = _merge(req.previous, said)
     emit(
         "understand",
-        f"Understood: {intent.model_dump(mode='json', exclude_none=True, exclude_defaults=True)}",
+        f"Understood: {summary(intent)}",
         "आपकी बात समझी",
         intent=intent.model_dump(mode="json"),
     )
@@ -255,7 +306,7 @@ async def understand(state: AgentState) -> dict[str, Any]:
             req.lang,
             needs="confirm_qty",
         )
-    place: Place | None = req.place
+    place: Place | None = None if fresh else req.place
     if place is None and not intent.village and intent.district:
         # "सोयाबीन है, शाजापुर": a lone town name lands in district; it's where they are.
         intent = intent.model_copy(update={"village": intent.district})
@@ -265,6 +316,15 @@ async def understand(state: AgentState) -> dict[str, Any]:
         place, options = await match_village(
             intent.village, intent.district, intent.village_as_said
         )
+        if place is None and len(options) > 1:
+            n, n_hi = intent.village, intent.village_as_said or intent.village
+            return await _ask(
+                f"कौन सा {n_hi}? अपना गाँव चुनिए (ज़िला और तहसील साथ में लिखे हैं)।",
+                f"Which {n}? Pick your village (district and tahsil are shown).",
+                intent,
+                req.lang,
+                options=[p.model_dump() for p in options],
+            )
         if place is None and options:
             o = options[0]
             return await _ask(
@@ -290,9 +350,16 @@ async def understand(state: AgentState) -> dict[str, Any]:
             intent,
             req.lang,
         )
-    # Edit boxes win over words. Neither given -> ask; we never assume a hire rate.
-    rate = req.params.rate_per_km or intent.rate_per_km
-    cap = req.params.capacity_q or intent.capacity_q
+    # Words in this message win, then the edit boxes, then what was said earlier. Only
+    # "Change your numbers" (recalc) lets the edit boxes beat the words, since it resends the
+    # original question. Neither given -> ask; we never assume a hire rate.
+    p = req.params
+    if req.recalc:
+        rate = p.rate_per_km or intent.rate_per_km
+        cap = p.capacity_q or intent.capacity_q
+    else:
+        rate = said.rate_per_km or p.rate_per_km or intent.rate_per_km
+        cap = said.capacity_q or p.capacity_q or intent.capacity_q
     if rate is None or cap is None:
         q_hi, q_en = {
             (True, True): (

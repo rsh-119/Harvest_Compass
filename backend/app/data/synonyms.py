@@ -48,6 +48,21 @@ MANDI_TOWN_ALIASES: dict[str, tuple[str, str | None]] = {
 }
 
 
+# Sub-yards named "<main yard>(<town>)": the yard is in the town in brackets, which market_town()
+# would strip. Checked on OpenStreetMap (Nominatim) on 1 Nov 2026:
+#   Vinchur = OSM node 4026062333, village in Niphad Taluka, Nashik (about 4 km from Lasalgaon)
+#   Niphad  = OSM node 650711320, town, Niphad Taluka, Nashik (about 15 km from Lasalgaon)
+# Keyed by the market name lowercased with spaces removed. Names only: coordinates come from OSM.
+SUB_YARD_TOWNS: dict[str, tuple[str, str]] = {
+    "lasalgaon(vinchur)": ("Vinchur", "Nashik"),
+    "lasalgaon(niphad)": ("Niphad", "Nashik"),
+}
+
+
+def sub_yard_town(name: str) -> tuple[str, str] | None:
+    return SUB_YARD_TOWNS.get(re.sub(r"\s+", "", name).lower())
+
+
 def normalize_market(name: str) -> str:
     """'Ashta  APMC' -> 'ashta apmc'. Used in the mandi key (normalised market, district)."""
     return re.sub(r"\s+", " ", name).strip().lower()
