@@ -298,7 +298,7 @@ export default function AskPage() {
   const r = vf?.result;
 
   return (
-    <main className="mx-auto grid max-w-7xl gap-6 px-4 pt-8 lg:grid-cols-[16rem_minmax(0,1fr)]">
+    <main className="mx-auto grid max-w-7xl gap-6 px-4 pt-8 lg:grid-cols-[16rem_minmax(0,1fr)] xl:grid-cols-[15rem_minmax(0,1fr)_17rem]">
       <aside className="order-2 lg:order-1 lg:sticky lg:top-24 lg:max-h-[calc(100dvh-7rem)] lg:self-start lg:overflow-y-auto">
         <History turns={turns} at={at} busy={busy} onPick={setSel} />
       </aside>
@@ -437,8 +437,9 @@ export default function AskPage() {
         )}
 
         {/* 2. The agent at work */}
+        {/* Inline below xl; on wide screens it sits in the right column instead */}
         {view && (
-          <section ref={pipelineRef} className="scroll-mt-24">
+          <section ref={pipelineRef} className="scroll-mt-24 xl:hidden">
             <Pipeline key={at} events={view.trace} busy={busy && isLatest} final={vf} />
           </section>
         )}
@@ -470,6 +471,12 @@ export default function AskPage() {
           </div>
         )}
       </div>
+
+      {view && (
+        <aside className="order-3 hidden xl:sticky xl:top-24 xl:block xl:max-h-[calc(100dvh-7rem)] xl:self-start xl:overflow-y-auto">
+          <Pipeline key={at} events={view.trace} busy={busy && isLatest} final={vf} vertical />
+        </aside>
+      )}
     </main>
   );
 }
@@ -506,7 +513,7 @@ function Chips({ intent: i, rate, needs }: { intent: Intent; rate?: number; need
   );
 }
 
-function Pipeline({ events, busy, final }: { events: TraceEvent[]; busy: boolean; final: Final | null }) {
+function Pipeline({ events, busy, final, vertical = false }: { events: TraceEvent[]; busy: boolean; final: Final | null; vertical?: boolean }) {
   const { lang, t, d, locale } = useLang();
   const [open, setOpen] = useState<number | null>(null);
   const by = d.how.flow.map((_, k) => events.filter((e) => stageOf(e) === k));
@@ -540,7 +547,7 @@ function Pipeline({ events, busy, final }: { events: TraceEvent[]; busy: boolean
       <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/70">
         <div className="h-full rounded-full bg-gradient-to-r from-marigold-400 to-leaf-600 transition-all duration-500" style={{ width: `${(done / 7) * 100}%` }} />
       </div>
-      <ol className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
+      <ol className={`mt-4 grid gap-2 ${vertical ? "grid-cols-1" : "grid-cols-2 sm:grid-cols-4 lg:grid-cols-7"}`}>
         {d.how.flow.map((s, k) => {
           const has = by[k].length > 0;
           const active = k === current;
@@ -558,7 +565,7 @@ function Pipeline({ events, busy, final }: { events: TraceEvent[]; busy: boolean
                 onClick={() => setOpen(open === k ? null : k)}
                 disabled={!has}
                 aria-expanded={open === k}
-                className={`h-full w-full rounded-2xl p-3 text-left transition ${cls} ${skipped ? "opacity-60" : ""} ${open === k ? "outline-2 outline-ink-900" : ""}`}
+                className={`h-full w-full rounded-2xl text-left transition ${vertical ? "flex items-center gap-3 px-3 py-2" : "p-3"} ${cls} ${skipped ? "opacity-60" : ""} ${open === k ? "outline-2 outline-ink-900" : ""}`}
               >
                 <span className="flex items-center gap-1.5">
                   <span aria-hidden className={active ? "animate-pulse" : ""}>
@@ -566,8 +573,10 @@ function Pipeline({ events, busy, final }: { events: TraceEvent[]; busy: boolean
                   </span>
                   <span className="text-xs font-bold text-ink-500">{k + 1}</span>
                 </span>
-                <span className="mt-1 block font-semibold text-ink-900">{s.name}</span>
-                <span className="block text-xs text-ink-600">{active ? t("thinking") : note(k)}</span>
+                <span className={vertical ? "min-w-0" : ""}>
+                  <span className={`block font-semibold text-ink-900 ${vertical ? "" : "mt-1"}`}>{s.name}</span>
+                  <span className="block text-xs text-ink-600">{active ? t("thinking") : note(k)}</span>
+                </span>
               </button>
             </li>
           );
