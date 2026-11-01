@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
 from app.agent.graph import graph
+from app.agent.multi_graph import multi_graph
 from app.agent.state import AskRequest
 from app.backtest import run_backtest as backtest
 from app.config import settings
@@ -69,7 +70,8 @@ async def run_agent(req: AskRequest) -> AsyncIterator[str]:
     events: list[dict[str, Any]] = []
     start = time.monotonic()
     try:
-        async for mode, chunk in graph.astream({"request": req}, stream_mode=["custom", "values"]):
+        g = multi_graph if (req.mode or settings.agent_mode) == "multi" else graph
+        async for mode, chunk in g.astream({"request": req}, stream_mode=["custom", "values"]):
             if mode == "custom":
                 events.append(dict(chunk))  # type: ignore[arg-type]
                 yield _sse(events[-1])

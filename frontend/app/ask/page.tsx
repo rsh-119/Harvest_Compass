@@ -45,6 +45,16 @@ const fmtTime = (iso: string | null | undefined, locale: string) =>
   iso ? new Date(iso).toLocaleString(locale, { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" }) : "—";
 const dateOf = (iso: string) => new Date(iso + "T00:00:00");
 const stepText = (e: TraceEvent, lang: string) => (lang === "hi" && e.hi ? e.hi : e.en);
+// Multi-agent mode labels each trace line with the agent that produced it.
+const AGENT_CHIP: Record<string, string> = {
+  supervisor: "bg-violet-100 text-violet-800",
+  intake: "bg-sky-100 text-sky-800",
+  market: "bg-amber-100 text-amber-800",
+  weather: "bg-cyan-100 text-cyan-800",
+  auditor: "bg-red-100 text-red-800",
+  calculator: "bg-leaf-100 text-leaf-800",
+  explainer: "bg-ink-100 text-ink-800",
+};
 
 const EVENT_ICON: Record<string, string> = {
   understand: "👂",
@@ -605,7 +615,14 @@ function Pipeline({ events, busy, final, vertical = false }: { events: TraceEven
             <li key={k} className={`flex gap-2 rounded-lg px-2 py-1 ${e.event === "repair" ? "bg-amber-50" : e.event === "audit_reject" ? "bg-red-50" : ""}`}>
               <span aria-hidden>{EVENT_ICON[e.event] ?? "•"}</span>
               <span className="min-w-0">
-                <span className="block break-words text-ink-800">{stepText(e, lang)}</span>
+                <span className="block break-words text-ink-800">
+                  {typeof e.agent === "string" && (
+                    <span className={`mr-1.5 inline-block rounded-full px-1.5 py-px align-middle text-[10px] font-semibold uppercase tracking-wide ${AGENT_CHIP[e.agent] ?? "bg-ink-100 text-ink-700"}`}>
+                      {e.agent}
+                    </span>
+                  )}
+                  {stepText(e, lang)}
+                </span>
                 {e.status && (
                   <span className="text-xs text-ink-500">
                     {status(t, e.status)}

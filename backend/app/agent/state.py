@@ -56,6 +56,7 @@ class AskRequest(BaseModel):
     recalc: bool = False  # "Change your numbers": the edit boxes win over the words
     speak: bool = False  # also send the reply as audio (if the language has a voice)
     lang: LangCode = "en"  # language of questions, answer and voice
+    mode: Literal["pipeline", "multi"] | None = None  # override AGENT_MODE for this question
 
 
 class Mandi(BaseModel):
@@ -90,3 +91,5 @@ class AgentState(TypedDict, total=False):
     notes: list[str]
     result: dict[str, Any]
     answer: str
+    supervisor_turns: int  # multi-agent mode: supervisor decisions so far
+    widen: bool  # multi-agent mode: supervisor sent the market agent out again

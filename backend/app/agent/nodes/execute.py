@@ -131,10 +131,47 @@ async def _locate(state: AgentState, rows: list[PriceRow]) -> list[Mandi]:
     return in_range + unresolved  # unresolved mandis are kept so the audit can name them
 
 
-async def execute(state: AgentState) -> dict[str, Any]:
-    i, faults, place = state["intent"], state["faults"], state["place"]
-    crop = i.crop or ""
+async def fetch_weather(state: AgentState) -> dict[str, Any]:
+    """Weather agent's tool: both forecast models, or a plain note when there is none."""
+    faults, place = state["faults"], state["place"]
     want_weather = any(s["step"] == "weather" for s in state["plan"])
+    models = weather_models(faults)
+    if not want_weather:
+        return {}
+    t0 = time.monotonic()
+    out: dict[str, Any] = {}
+    if models:
+        res = await weather.forecast(place.lat, place.lon, models)
+        wres = res.map(
+            lambda d: {m: [x.model_dump(mode="json") for x in days] for m, days in d.items()}
+        )
+        got = set((wres.data or {}).keys())
+        _trace(
+            "weather", wres, t0, f"Weather received from {model_names(got)}", "मौसम पूर्वानुमान मिला"
+        )
+        out["weather"] = wres
+        missing = [m for m in weather.MODELS if m not in got]
+        if missing and got:
+            emit(
+                "repair",
+                f"Weather model {model_names(missing)} unavailable; using {model_names(got)} only "
+                "(one model only, lower confidence)",
+                "एक मौसम मॉडल उपलब्ध नहीं; सिर्फ़ दूसरे मॉडल से (कम भरोसा)",
+            )
+        if got:
+            return out
+    emit(
+        "repair",
+        "No weather forecast available, so no harvest days are suggested",
+        "मौसम का पूर्वानुमान नहीं मिला, इसलिए कटाई के दिन नहीं बताए",
+    )
+    return out
+
+
+async def fetch_market(state: AgentState) -> dict[str, Any]:
+    """Market agent's tools: today's prices, 30-day history, then locate mandis and road km."""
+    i, faults = state["intent"], state["faults"]
+    crop = i.crop or ""
     t0 = time.monotonic()
 
     async def prices() -> Sourced[list[PriceRow]]:
@@ -153,22 +190,7 @@ async def execute(state: AgentState) -> dict[str, Any]:
             crop, HISTORY_DAYS, end=today_ist() - timedelta(days=1), state=agmark(state["region"])
         )
 
-    async def wx() -> Sourced[dict[str, Any]] | None:
-        models = weather_models(faults)
-        if not want_weather or not models:
-            return None
-        res = await weather.forecast(place.lat, place.lon, models)
-        return res.map(
-            lambda d: {m: [x.model_dump(mode="json") for x in days] for m, days in d.items()}
-        )
-
-    emit(
-        "tool_call",
-        "Fetching today's prices, 30-day history and weather in parallel",
-        "आज के भाव, पिछले 30 दिन और मौसम एक साथ मंगाए जा रहे हैं",
-        tool="parallel",
-    )
-    cur, days, wres = await asyncio.gather(prices(), hist(), wx())
+    cur, days = await asyncio.gather(prices(), hist())
     _trace(
         "mandi_current",
         cur,
@@ -193,26 +215,6 @@ async def execute(state: AgentState) -> dict[str, Any]:
             "आज के भाव का स्रोत बंद है; हर मंडी का सबसे ताज़ा उपलब्ध भाव (उम्र के साथ) लिया",
         )
     out: dict[str, Any] = {"current": cur, "history": history}
-    if wres is not None:
-        got = set((wres.data or {}).keys())
-        _trace(
-            "weather", wres, t0, f"Weather received from {model_names(got)}", "मौसम पूर्वानुमान मिला"
-        )
-        out["weather"] = wres
-        missing = [m for m in weather.MODELS if m not in got]
-        if missing and got:
-            emit(
-                "repair",
-                f"Weather model {model_names(missing)} unavailable; using {model_names(got)} only "
-                "(one model only, lower confidence)",
-                "एक मौसम मॉडल उपलब्ध नहीं; सिर्फ़ दूसरे मॉडल से (कम भरोसा)",
-            )
-    elif want_weather:
-        emit(
-            "repair",
-            "No weather forecast available, so no harvest days are suggested",
-            "मौसम का पूर्वानुमान नहीं मिला, इसलिए कटाई के दिन नहीं बताए",
-        )
     rows = latest_rows(
         [r for r in cur.data or [] if r.commodity == crop],
         [r for r in history if r.commodity == crop],
@@ -227,3 +229,15 @@ async def execute(state: AgentState) -> dict[str, Any]:
             await queue_refresh(agmark(state["region"]), crop)
     out["mandis"] = await _locate(state, rows)
     return out
+
+
+async def execute(state: AgentState) -> dict[str, Any]:
+    """Pipeline mode: market and weather tools concurrently, one merged update."""
+    emit(
+        "tool_call",
+        "Fetching today's prices, 30-day history and weather in parallel",
+        "आज के भाव, पिछले 30 दिन और मौसम एक साथ मंगाए जा रहे हैं",
+        tool="parallel",
+    )
+    market, wx = await asyncio.gather(fetch_market(state), fetch_weather(state))
+    return {**market, **wx}

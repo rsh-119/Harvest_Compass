@@ -1,6 +1,7 @@
 """Settings read from the repo-root .env (never committed) or real env vars on the host."""
 
 from pathlib import Path
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -29,6 +30,8 @@ class Settings(BaseSettings):
     center_lat: float = 22.7196
     center_lon: float = 75.8577
     radius_km: float = 150
+    # "pipeline": one agent, fixed steps. "multi": supervisor agent + specialist agents.
+    agent_mode: Literal["pipeline", "multi"] = "pipeline"
     max_radius_km: float = 250  # repair widens 150 -> 200 -> 250
 
     # Longest drive we consider. Perishables get a tighter cap.
