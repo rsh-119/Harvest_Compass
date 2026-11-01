@@ -128,6 +128,7 @@ export default function AskPage() {
   const lastText = useRef("");
   const pipelineRef = useRef<HTMLElement | null>(null);
   const questionRef = useRef<HTMLElement | null>(null);
+  const answerRef = useRef<HTMLDivElement | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [server, setServer] = useState<"checking" | "waking" | "up" | "down">("checking");
   const [srcHealth, setSrcHealth] = useState<Health | null>(null);
@@ -175,7 +176,10 @@ export default function AskPage() {
           setFinal(f);
           setPending(f.clarify);
           // The agent stopped to ask: bring its question back into view (on phones it is above the steps).
-          if (f.clarify) setTimeout(() => questionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+          // Otherwise go to the answer. Without this, phone browsers keep "Source status" in place as the
+          // result is inserted above it (scroll anchoring) and the farmer lands at the bottom of the page.
+          const target = f.clarify ? questionRef : answerRef;
+          setTimeout(() => target.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
           if (f.result) {
             const c = f.result.costs; // show what was used, in the edit boxes
             setParams((p) => ({ ...p, rate_per_km: c.rate_per_km, capacity_q: c.capacity_q, other_charges_per_q: c.other_charges_per_q }));
@@ -448,6 +452,7 @@ export default function AskPage() {
         )}
 
         {/* 3. The decision */}
+        <div ref={answerRef} className="scroll-mt-24 space-y-5">
         {r?.best && vf?.place && (
           <ResultView
             r={r}
@@ -467,6 +472,7 @@ export default function AskPage() {
             {isLatest && audioUrl && <ListenButton url={audioUrl} />}
           </section>
         )}
+        </div>
 
         {srcHealth && (
           <div className="grid gap-3 sm:grid-cols-2">
