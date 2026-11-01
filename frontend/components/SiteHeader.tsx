@@ -14,7 +14,7 @@ export default function SiteHeader() {
   return (
     <header className="sticky top-0 z-[1100] px-4 pt-3">
       <nav
-        className="glass mx-auto flex max-w-6xl items-center gap-2 rounded-full py-2 pr-2 pl-4 sm:gap-4 sm:pl-5"
+        className="glass mx-auto flex max-w-6xl items-center bg-white/92 gap-2 rounded-full py-2 pr-2 pl-4 sm:gap-4 sm:pl-5"
         aria-label="Main"
       >
         <Link href="/" className="flex items-center gap-2" onClick={() => setOpen(false)}>

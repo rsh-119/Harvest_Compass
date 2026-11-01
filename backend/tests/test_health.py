@@ -23,6 +23,7 @@ def test_health_reports_every_source(monkeypatch: pytest.MonkeyPatch) -> None:
         "routing",
         "geocoding",
     }
+    assert TestClient(app).head("/health").status_code == 200  # uptime monitors send HEAD
 
 
 def test_transcribe_rejects_empty_audio_without_calling_sarvam() -> None:

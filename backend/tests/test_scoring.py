@@ -258,3 +258,25 @@ def test_wide_spread_and_one_model_lower_confidence() -> None:
     assert level == "medium" and "wide price spread" in why[0]
     level, why = confidence(1, 5, True, True, one_model=True)
     assert level == "medium" and why == ["one weather model only"]
+
+
+# --- a mandi reporting twice on one day counts once, at that day's median ---
+def test_same_day_reports_use_the_median() -> None:
+    from app.agent.nodes.compute import _series
+    from app.agent.state import Mandi
+    from app.tools.mandi import PriceRow
+
+    def row(day: int, modal: float) -> PriceRow:
+        return PriceRow(
+            market="Indore APMC", district="Indore", commodity="Soyabean", variety="Soyabeen",
+            grade="FAQ", arrival_date=D0 - timedelta(days=day), min_price=modal - 50,
+            max_price=modal + 50, modal_price=modal, source="history",
+        )  # fmt: skip
+
+    hist = [row(2, 7100), row(1, 6925), row(1, 6800)]  # Indore, 29 Oct: two reports
+    m = Mandi(key="indore apmc|indore", market="Indore APMC", district="Indore", row=hist[0])
+    for h in (hist, hist[::-1]):  # same answer whichever row comes last
+        assert _series(h, m, D0 - timedelta(days=6)) == [
+            (D0 - timedelta(days=2), 7100),
+            (D0 - timedelta(days=1), 6862.5),
+        ]

@@ -301,7 +301,10 @@ export default function AskPage() {
   const vf = view?.final ?? null;
   const asking = isLatest && !busy ? pending : null;
   // While a follow-up runs, keep showing what was understood so far.
-  const intent = (vf?.intent ?? turns.findLast((x) => x.final?.intent)?.final?.intent ?? null) as Intent | null;
+  // When the agent asks back, what it understood so far is in clarify.intent, not intent. Without
+  // it the chips fell back to the PREVIOUS question (asking about gram, showing wheat).
+  const intentOf = (f: Final | null | undefined) => f?.intent ?? f?.clarify?.intent ?? null;
+  const intent = (intentOf(vf) ?? intentOf(turns.findLast((x) => intentOf(x.final))?.final)) as Intent | null;
   const r = vf?.result;
 
   return (

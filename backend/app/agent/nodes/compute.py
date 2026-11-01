@@ -1,5 +1,6 @@
 """All numbers in the answer come from here: pure scoring functions, no LLM."""
 
+import statistics
 from datetime import date, timedelta
 from typing import Any
 
@@ -35,15 +36,20 @@ LARGE_SALE_Q = 2000
 
 
 def _series(history: list[PriceRow], m: Mandi, since: date) -> list[tuple[date, float]]:
+    """One price per day, oldest first. A mandi sometimes reports the same variety twice on one
+    day (Indore soybean, 29 Oct: 6800 and 6925); take that day's median instead of whichever
+    row came last."""
     if m.row is None:
         return []
-    return [
-        (r.arrival_date, r.modal_price)
-        for r in history
-        if r.key == m.row.key
-        and (r.variety, r.grade) == (m.row.variety, m.row.grade)
-        and r.arrival_date >= since
-    ]
+    by_day: dict[date, list[float]] = {}
+    for r in history:
+        if (
+            r.key == m.row.key
+            and (r.variety, r.grade) == (m.row.variety, m.row.grade)
+            and r.arrival_date >= since
+        ):
+            by_day.setdefault(r.arrival_date, []).append(r.modal_price)
+    return [(d, statistics.median(v)) for d, v in sorted(by_day.items())]
 
 
 def confidence(
@@ -84,7 +90,7 @@ def compute_result(state: AgentState, today: date) -> dict[str, Any]:
         assert m.row and m.route
         week = dict(_series(history, m, today - timedelta(days=6)))
         if m.row.arrival_date >= today - timedelta(days=6):
-            week[m.row.arrival_date] = m.row.modal_price  # today's report isn't in history yet
+            week.setdefault(m.row.arrival_date, m.row.modal_price)  # today's isn't in history yet
         # Round once (price to whole rupees, distance to the 0.1 km shown), then compute every
         # money line from those values, so the card adds up exactly. A median of an even
         # number of reports can end in .5.
@@ -92,7 +98,7 @@ def compute_result(state: AgentState, today: date) -> dict[str, Any]:
         km = round(m.route.km, 1)
         res = net_profit(price, km, costs)
         two_weeks = dict(_series(history, m, today - timedelta(days=13)))
-        two_weeks[m.row.arrival_date] = m.row.modal_price  # for the chart: same values as `week`
+        two_weeks.setdefault(m.row.arrival_date, m.row.modal_price)  # chart: same days as `week`
         cp_raw = conservative_price([v for _, v in _series(history, m, today - timedelta(days=14))])
         cp = None if cp_raw is None else rupees(cp_raw)
         cons_net = None if cp is None else net_profit(cp, km, costs).net_per_quintal

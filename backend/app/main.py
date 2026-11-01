@@ -47,7 +47,7 @@ app.add_middleware(
 )
 
 
-@app.get("/health")
+@app.api_route("/health", methods=["GET", "HEAD"])  # HEAD for uptime monitors
 async def health() -> dict[str, object]:
     """Live status of each source (real tiny calls, remembered 60 s). Also the warm-up ping."""
     sources = await health_status()
