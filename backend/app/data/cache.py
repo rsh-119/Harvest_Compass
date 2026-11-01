@@ -88,17 +88,22 @@ async def _read(key: str) -> tuple[Any, str, datetime] | None:
 
 
 async def _write(key: str, source_url: str, fetched_at: datetime, payload: Any) -> None:
+    await write_many([(key, source_url, fetched_at, payload)])
+
+
+async def write_many(items: list[tuple[str, str, datetime, Any]]) -> None:
+    """Upsert many entries in one round trip (the refresh job writes thousands)."""
     pool = await get_pool()
-    if pool is None:
+    if pool is None or not items:
         return
-    async with pool.connection() as conn:
-        await conn.execute(
+    async with pool.connection() as conn, conn.cursor() as cur:
+        await cur.executemany(
             """INSERT INTO api_cache (key, source_url, fetched_at, payload)
                VALUES (%s, %s, %s, %s::jsonb)
                ON CONFLICT (key) DO UPDATE
                SET source_url = EXCLUDED.source_url, fetched_at = EXCLUDED.fetched_at,
                    payload = EXCLUDED.payload""",
-            (key, source_url, fetched_at, json.dumps(payload)),
+            [(k, u, f, json.dumps(p)) for k, u, f, p in items],
         )
 
 

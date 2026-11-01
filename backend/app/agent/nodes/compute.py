@@ -128,6 +128,7 @@ def compute_result(state: AgentState, today: date) -> dict[str, Any]:
             "district": m.district,
             "reasons": [f.en for f in m.findings if f.severity != "info"],
             "reasons_hi": [f.hi for f in m.findings if f.severity != "info"],
+            "last_date": m.row.arrival_date.isoformat() if m.row else None,
         }
         for m in state["mandis"]
         if not m.usable

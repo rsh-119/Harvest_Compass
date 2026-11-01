@@ -185,3 +185,26 @@ def test_no_answer_names_real_reasons() -> None:
     en, hi = no_answer({"excluded": [ex, ex]}, "wheat")
     assert "map" in en and "trust" not in en
     assert en.count("Could not find") == 1  # same reason from repair rounds shown once
+
+
+def test_no_answer_says_state_went_quiet() -> None:
+    from datetime import timedelta
+
+    from app.agent.nodes.explain import no_answer
+    from app.clock import today_ist
+
+    old = (today_ist() - timedelta(days=11)).isoformat()
+    ex = {"market": "X", "district": "D", "reasons": ["Price is 11 days old"], "reasons_hi": ["x"]}
+    en, _ = no_answer({"region": "Uttar Pradesh", "excluded": [{**ex, "last_date": old}]}, "wheat")
+    assert "haven't reported wheat prices since" in en
+    fresh = {**ex, "last_date": today_ist().isoformat()}
+    en, _ = no_answer({"region": "Uttar Pradesh", "excluded": [fresh]}, "wheat")
+    assert "haven't reported" not in en
+
+
+def test_split_by_crop() -> None:
+    from scripts.warm import split_by_crop
+
+    recs = [{"Commodity": "Wheat", "n": 1}, {"Commodity": "Onion"}, {"Commodity": "Wheat", "n": 2}]
+    out = split_by_crop(recs)
+    assert [r["n"] for r in out["Wheat"]] == [1, 2] and len(out["Onion"]) == 1

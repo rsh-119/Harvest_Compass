@@ -22,7 +22,8 @@ class Settings(BaseSettings):
     # speech calls (STT + uncached TTS) per IST day; cached replies are free. 0 = voice off.
     voice_daily_limit: int = 60
 
-    # Region and crops chosen by the M0 coverage query (67 soybean / 42 onion mandis near Indore).
+    # Default crops for the backtest, smoke test and warm scripts only (picked in M0).
+    # The live agent serves all 80 crops in app/data/crops.py; don't treat this list as "supported".
     crops: list[str] = ["Soyabean", "Onion"]
     state: str = "Madhya Pradesh"
     center_lat: float = 22.7196

@@ -105,7 +105,7 @@ All prices, forecasts and distances come from these APIs or from cached copies o
 
 ## Evaluation
 
-**Backtest** (`app/backtest/run_backtest.py`): 30 villages in Madhya Pradesh, 60 days (31 Aug – 30 Oct 2026), real data.gov.in history. Each day the strategy chooses a mandi using only data available that day, and is scored on the next day's price against the nearest mandi. Mean gain in ₹/quintal at assumed transport rates of ₹0.5 / 1 / 2 per quintal-km:
+**Backtest** (`app/backtest/run_backtest.py`): run on two test crops, onion (prices vary a lot between mandis) and soybean (prices nearly uniform). The live agent covers all 80 crops in `app/data/crops.py`, and the backtest takes any of them with `--crop`. 30 villages in Madhya Pradesh, 60 days (31 Aug – 30 Oct 2026), real data.gov.in history. Each day the strategy chooses a mandi using only data available that day, and is scored on the next day's price against the nearest mandi. Mean gain in ₹/quintal at assumed transport rates of ₹0.5 / 1 / 2 per quintal-km:
 
 | Crop | Today's price | 7-day median | 7-day median + nearer on close calls (live) |
 |---|---|---|---|
@@ -155,7 +155,7 @@ bash check.sh                                   # ruff, mypy --strict, pytest, e
 
 cd backend
 uv run python -m scripts.smoke                  # one live call to every data source
-uv run python -m scripts.ask "40 quintal soybean, village Sanwer, Indore, vehicle ₹35/km, 30 q per trip"
+uv run python -m scripts.ask "25 quintal wheat, village Sanwer, Indore, vehicle ₹35/km, 30 q per trip"   # any crop in app/data/crops.py
 uv run python -m scripts.ask "..." --fault weather_ecmwf    # simulate a source failure
 uv run python -m scripts.grounding              # invented-number check over 20 questions
 uv run python -m app.backtest.run_backtest      # results stored in the backtest_runs table
@@ -173,7 +173,7 @@ uv run python -m scripts.warm                   # pre-cache prices and mandi loc
   ```
   `env.yaml` holds the environment variables above (not committed). `render.yaml` is kept as an alternative Render blueprint.
 - **Frontend:** Vercel, root `frontend`, with `NEXT_PUBLIC_API_URL` pointing to the backend.
-- **data.gov.in from cloud hosts:** the API refuses requests from cloud data-centre IPs (403 from Cloud Run, connection refused from Render). The backend then serves the latest cached prices with their date. Run `uv run python -m scripts.warm` from a machine in India to refresh the shared cache.
+- **data.gov.in from cloud hosts:** the API refuses requests from cloud data-centre IPs (403 from Cloud Run, connection refused from Render). The backend then serves the latest cached prices with their date. `uv run python -m scripts.warm --all-crops` runs daily at 4 am from a machine in India (Windows task `HarvestCompassWarm`): today's prices plus 14 days of history for every crop in every state (one data.gov.in request per state and day), 30 days for soybean and onion.
 - `/health` runs lightweight checks against each source (cached for 60 s); error messages mask API keys.
 - Rate limits: 10 paid requests per minute per client, 300 per hour overall.
 

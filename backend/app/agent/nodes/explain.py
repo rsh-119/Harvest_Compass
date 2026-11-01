@@ -10,8 +10,10 @@ from typing import Any
 
 from app.agent.state import AgentState
 from app.agent.trace import emit
+from app.clock import today_ist
 from app.languages import LANGS, localise
 from app.llm import chat
+from app.scoring.audit_rules import MAX_AGE_DAYS
 
 log = logging.getLogger("explain")
 # \d matches digits in every Indian script, and float() reads them, so the check works in any language.
@@ -62,6 +64,16 @@ def no_answer(result: dict[str, Any], crop: str) -> tuple[str, str]:
             f"{region} की किसी मंडी ने हाल में {crop} का भाव नहीं भेजा, इसलिए कोई मंडी नहीं बता सकते।",
         )
     ex = result.get("excluded", [])
+    dates = [m["last_date"] for m in ex if m.get("last_date")]
+    if dates and all((today_ist() - date.fromisoformat(d)).days > MAX_AGE_DAYS for d in dates):
+        # The state stopped reporting (e.g. most of Uttar Pradesh from 22 Oct 2026): say so.
+        last = max(dates)
+        return (
+            f"Mandis near you in {region} haven't reported {crop} prices since {en_date(last)}, "
+            "so there's no fresh price to compare.",
+            f"{region} में आपके पास की मंडियों ने {hi_date(last)} के बाद {crop} का भाव नहीं भेजा, "
+            "इसलिए तुलना के लिए ताज़ा भाव नहीं है।",
+        )
     # Say the real reasons (map lookup failed, too far, stale price...), not a blanket "no price".
     en = list(dict.fromkeys(r for m in ex for r in m["reasons"]))[:3]
     hi = list(dict.fromkeys(r for m in ex for r in m["reasons_hi"]))[:3]
