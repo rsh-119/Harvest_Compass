@@ -41,7 +41,8 @@ def flat(x: Any, path: str = "") -> dict[str, str]:
         return {k2: v for k, v in x.items() for k2, v in flat(v, f"{path}{k}.").items()}
     if isinstance(x, list):
         return {k2: v for i, v in enumerate(x) for k2, v in flat(v, f"{path}{i}.").items()}
-    return {path[:-1]: x}
+    # only text is translated; flags like "ai": true are copied from English by rebuild()
+    return {path[:-1]: x} if isinstance(x, str) else {}
 
 
 def rebuild(template: Any, values: dict[str, str], path: str = "") -> Any:
