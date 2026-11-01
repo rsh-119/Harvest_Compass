@@ -18,6 +18,7 @@ import {
   type TraceEvent,
 } from "@/lib/api";
 import { STEP_AI, STEP_ICONS } from "@/components/brand";
+import { VoiceMeter } from "@/components/VoiceMeter";
 import { LANGS, LanguagePicker, useLang, type T } from "@/lib/i18n";
 
 const STATUS_KEY = { live: "st_live", cache: "st_cache", stale_cache: "st_stale_cache", error: "st_error" } as const;
@@ -121,6 +122,9 @@ export default function AskPage() {
   const [params, setParams] = useState<Params>(DEFAULT_PARAMS);
   const [error, setError] = useState<string | null>(null);
   const [recording, setRecording] = useState(false);
+  const [micStream, setMicStream] = useState<MediaStream | null>(null); // drives the live meter
+  const [transcribing, setTranscribing] = useState(false);
+  const micRing = useRef<HTMLSpanElement>(null);
   // Spoken replies cost Sarvam credits: only when the farmer spoke, or switched this on.
   const [readAloud, setReadAloud] = useState(false);
   const lastSpoken = useRef(false); // was the latest question asked with the mic?
@@ -278,17 +282,22 @@ export default function AskPage() {
       rec.onstop = async () => {
         stream.getTracks().forEach((tr) => tr.stop());
         setRecording(false);
+        setMicStream(null);
+        setTranscribing(true);
         try {
           const said = await transcribe(new Blob(chunks, { type: rec.mimeType }), lang);
           setText(said);
           submit(said, true);
         } catch (err) {
           setError(err instanceof Error && err.message.includes("limit") ? t("voice_limit") : t("stt_failed"));
+        } finally {
+          setTranscribing(false);
         }
       };
       rec.start();
       recorder.current = rec;
       setRecording(true);
+      setMicStream(stream);
       setTimeout(() => rec.state === "recording" && rec.stop(), 25_000); // Sarvam REST limit ~30 s
     } catch {
       setError(t("mic_denied"));
@@ -389,21 +398,51 @@ export default function AskPage() {
               placeholder={asking ? t("answer_label") : t("placeholder")}
               className="min-w-0 flex-1 resize-none rounded-2xl border border-white bg-white/90 p-3 text-lg shadow-inner focus:border-leaf-600 focus:outline-none"
             />
-            <button
-              onClick={toggleMic}
-              disabled={busy && !recording}
-              aria-pressed={recording}
-              aria-label={recording ? t("stop") : t("speak")}
-              className={`grid h-12 w-12 shrink-0 place-items-center rounded-full text-xl text-white ${
-                recording ? "animate-pulse bg-red-600" : "bg-ink-800 hover:bg-ink-700"
-              } disabled:opacity-50`}
-            >
-              {recording ? "⏹" : "🎤"}
-            </button>
+            <span ref={micRing} className="relative grid shrink-0 place-items-center" style={{ "--lvl": 0 } as React.CSSProperties}>
+              {recording && (
+                <>
+                  {/* rings grow with the voice's loudness (--lvl, 0..1, set by VoiceMeter) */}
+                  <span
+                    aria-hidden
+                    className="pointer-events-none absolute inset-0 rounded-full bg-red-500/30 transition-transform duration-100 motion-reduce:hidden"
+                    style={{ transform: "scale(calc(1 + var(--lvl) * 0.9))" }}
+                  />
+                  <span
+                    aria-hidden
+                    className="pointer-events-none absolute inset-0 rounded-full bg-red-500/15 transition-transform duration-150 motion-reduce:hidden"
+                    style={{ transform: "scale(calc(1.1 + var(--lvl) * 1.6))" }}
+                  />
+                </>
+              )}
+              <button
+                onClick={toggleMic}
+                disabled={(busy && !recording) || transcribing}
+                aria-pressed={recording}
+                aria-label={recording ? t("stop") : t("speak")}
+                className={`relative grid h-12 w-12 place-items-center rounded-full text-xl text-white transition-colors ${
+                  recording ? "bg-red-600 shadow-lg shadow-red-600/40" : "bg-ink-800 hover:bg-ink-700"
+                } disabled:opacity-50`}
+              >
+                {transcribing ? (
+                  <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/40 border-t-white" aria-hidden />
+                ) : recording ? (
+                  "⏹"
+                ) : (
+                  "🎤"
+                )}
+              </button>
+            </span>
             <button onClick={() => submit()} disabled={busy || !text.trim()} className="btn-primary h-12 shrink-0 px-6 disabled:opacity-50">
               {busy ? "…" : t("ask")}
             </button>
           </div>
+          {micStream && <VoiceMeter stream={micStream} maxSeconds={25} label={t("listening")} ringRef={micRing} />}
+          {transcribing && (
+            <p className="mt-2 flex items-center gap-2 rounded-2xl bg-white/70 px-3 py-2 text-sm text-ink-700" role="status">
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-leaf-600/30 border-t-leaf-600" aria-hidden />
+              {t("understanding")}
+            </p>
+          )}
           <div className="mt-2 text-sm text-ink-600">
             {langInfo.voice ? (
               <label className="flex items-center gap-2">

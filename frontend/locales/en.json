@@ -460,6 +460,8 @@
     "ask_label": "Ask about your crop, by voice or text",
     "placeholder": "e.g. I have 40 quintals of soybean, village Sanwer, Indore…",
     "stop": "⏹ Stop",
+    "listening": "Listening…",
+    "understanding": "Understanding your voice…",
     "speak": "🎤 Speak",
     "thinking": "Thinking…",
     "ask": "Ask",
