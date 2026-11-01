@@ -208,3 +208,30 @@ def test_split_by_crop() -> None:
     recs = [{"Commodity": "Wheat", "n": 1}, {"Commodity": "Onion"}, {"Commodity": "Wheat", "n": 2}]
     out = split_by_crop(recs)
     assert [r["n"] for r in out["Wheat"]] == [1, 2] and len(out["Onion"]) == 1
+
+
+def test_in_district_tolerates_feed_spellings() -> None:
+    from app.tools.geocode import Place, in_district
+
+    def p(name: str, addr: str) -> Place:
+        return Place(name=name, display_name=addr, lat=0, lon=0)
+
+    gadarpur = p("Gadarpur", "Gadarpur, Udham Singh Nagar, Uttarakhand, 263152, India")
+    assert in_district(gadarpur, "Gadarpur", "Udhamsinghnagar")
+    assert in_district(
+        p("Rishikesh", "Rishikesh, Dehradun, Uttarakhand, India"), "Rishikesh", "Dehradoon"
+    )
+    # right district, but the hit is a road named after the town: not the town
+    road = p("Jandiala To Tarantaran Road", "Jandiala To Tarantaran Road, Tarn Taran, Punjab")
+    assert not in_district(road, "Tarantaran", "Tarntaran")
+    # same town name in another district
+    other = p("Kadungallur", "Kadungallur, Kondotty, Malappuram, Kerala, India")
+    assert not in_district(other, "Kadungallur", "Ernakulam")
+
+
+def test_spelling_variant() -> None:
+    from app.tools.geocode import spelling_variant
+
+    assert spelling_variant("Haathras") == "Hathras"
+    assert spelling_variant("Dehradoon") == "Dehradun"
+    assert spelling_variant("Indore") == "Indore"

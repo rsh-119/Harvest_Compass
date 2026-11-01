@@ -45,6 +45,30 @@ MANDI_TOWN_ALIASES: dict[str, tuple[str, str | None]] = {
     "Soyatkalan": ("Soyat Kalan", "Agar Malwa"),
     "Suvasra": ("Suwasra", None),
     "Taal": ("Tal", None),
+    # Outside MP, checked on Nominatim on 1 Nov 2026 (Nanakmatta left out: OSM returns only the
+    # gurudwara).
+    "Anoop Shahar": ("Anupshahr", None),
+    "Anwala": ("Aonla", None),
+    "Badayoun": ("Budaun", None),
+    "Baruwasagar": ("Barwa Sagar", None),
+    "Bharthna": ("Bharthana", None),
+    "Bijnaur": ("Bijnor", None),
+    "Bishalpur": ("Bisalpur", None),
+    "Bisoli": ("Bisauli", None),
+    "Buland Shahr": ("Bulandshahr", None),
+    "Chandoli": ("Chandauli", None),
+    "Chathannoore": ("Chathannoor", None),
+    "Chorichora": ("Chauri Chaura", None),
+    "Devariya": ("Deoria", None),
+    "Farukhabad": ("Farrukhabad", None),
+    "Golagokarnath": ("Gola Gokarannath", None),
+    "Haridwar Union": ("Haridwar", None),
+    "Irityy": ("Iritty", None),
+    "Kanjangadu": ("Kanhangad", None),
+    "Khateema": ("Khatima", None),
+    "Kicchha": ("Kichha", None),
+    "Kotadwara": ("Kotdwar", "Pauri Garhwal"),
+    "Lakshar": ("Laksar", None),
 }
 
 

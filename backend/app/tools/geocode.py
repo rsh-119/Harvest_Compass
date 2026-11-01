@@ -2,6 +2,8 @@
 cache results. "Not found" is cached too, and we never guess coordinates."""
 
 import asyncio
+import difflib
+import re
 import time
 from typing import Any
 from urllib.parse import urlencode
@@ -98,6 +100,34 @@ async def search_settlements(query: str, limit: int = 5) -> Sourced[list[Place]]
     return res.map(lambda ps: [Place(**p) for p in ps])
 
 
+def _letters(s: str) -> str:
+    return re.sub(r"[^a-z]", "", s.lower())
+
+
+def close_name(a: str, b: str, contain: bool = True) -> bool:
+    """Same place name despite data.gov.in spelling: 'Thirssur'~'Thrissur', 'Udhamsinghnagar'~
+    'Udham Singh Nagar', 'Dehradoon'~'Dehradun'. Letters only, then containment or 80% similar."""
+    a, b = _letters(a), _letters(b)
+    if not (a and b):
+        return False
+    return (contain and a in b) or difflib.SequenceMatcher(None, a, b).ratio() >= 0.8
+
+
+def spelling_variant(town: str) -> str:
+    return re.sub(r"([a-z])\1", r"\1", re.sub(r"oo", "u", town, flags=re.I), flags=re.I)
+
+
+def in_district(p: Place, town: str, district: str) -> bool:
+    """Exact district text in the address, or a similar district name plus a similar place name
+    (the name check stops a road or hospital that merely mentions the town)."""
+    if district.lower() in p.display_name.lower():
+        return True
+    parts = p.display_name.split(",")
+    return any(close_name(district, x) for x in parts) and any(
+        close_name(town, x, contain=False) for x in p.name.split(",")
+    )
+
+
 async def locate_mandi(market: str, district: str, state: str) -> Sourced[Place | None]:
     """Try 'town, district, state'. If that finds nothing, try 'town, state' and accept the
     result only if it lies in the right district. data=None means unresolved: the mandi is
@@ -110,5 +140,10 @@ async def locate_mandi(market: str, district: str, state: str) -> Sourced[Place 
     if first.data:
         return first.map(lambda ps: ps[0])
     second = await search(f"{town}, {state}, India", limit=3)
-    match = next((p for p in second.data or [] if dist.lower() in p.display_name.lower()), None)
+    match = next((p for p in second.data or [] if in_district(p, town, dist)), None)
+    if match is None and (alt := spelling_variant(town)) != town:
+        # feed spellings double letters: 'Haathras' -> Hathras, 'Dehradoon' -> Dehradun
+        third = await search(f"{alt}, {state}, India", limit=3)
+        match = next((p for p in third.data or [] if in_district(p, alt, dist)), None)
+        return third.map(lambda _: match)
     return second.map(lambda _: match)
