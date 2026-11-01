@@ -186,3 +186,9 @@ uv run python -m scripts.warm                   # pre-cache prices and mandi loc
 - Market fees are modelled for Madhya Pradesh only.
 - Rate limiting is in-memory and assumes a single backend instance.
 - The first query from a state with no cached mandi locations is slow, because Nominatim allows one lookup per second; `scripts.warm` pre-fills the cache.
+
+## Team: MCTE CODE CLUB
+
+- Manoj Kumar
+- Rishabh Yadav
+- Saiyam Jain
