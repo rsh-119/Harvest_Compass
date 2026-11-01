@@ -127,6 +127,7 @@ export default function AskPage() {
   const recorder = useRef<MediaRecorder | null>(null);
   const lastText = useRef("");
   const pipelineRef = useRef<HTMLElement | null>(null);
+  const questionRef = useRef<HTMLElement | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [server, setServer] = useState<"checking" | "waking" | "up" | "down">("checking");
   const [srcHealth, setSrcHealth] = useState<Health | null>(null);
@@ -173,6 +174,8 @@ export default function AskPage() {
           const f = e as Final;
           setFinal(f);
           setPending(f.clarify);
+          // The agent stopped to ask: bring its question back into view (on phones it is above the steps).
+          if (f.clarify) setTimeout(() => questionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
           if (f.result) {
             const c = f.result.costs; // show what was used, in the edit boxes
             setParams((p) => ({ ...p, rate_per_km: c.rate_per_km, capacity_q: c.capacity_q, other_charges_per_q: c.other_charges_per_q }));
@@ -323,7 +326,7 @@ export default function AskPage() {
         {server === "down" && <p className="rounded-lg bg-red-50 p-2 text-sm text-red-800">{t("down")}</p>}
 
         {/* 1. The question, and what the agent made of it */}
-        <section className="glass-strong p-4 sm:p-6">
+        <section ref={questionRef} className="glass-strong scroll-mt-24 p-4 sm:p-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <label htmlFor="q" className="font-semibold text-ink-800">
               {asking ? t("answer_label") : t("ask_label")}
