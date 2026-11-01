@@ -417,7 +417,7 @@
       }
     ],
     "fee_title": "Mandi fee",
-    "fee_body": "In Madhya Pradesh, under the Krishi Upaj Mandi Adhiniyam 1972, section 19(2), the buyer pays the market fee and it can't be deducted from the farmer's price, so the seller's fee is zero. Other states set their own rules, so there the answer notes that the market fee is not included. Hammali and weighing charges are set by each mandi committee, so the farmer enters them if they pay them; nothing is assumed.",
+    "fee_body": "In Madhya Pradesh, Uttar Pradesh, Punjab, Rajasthan, Karnataka, Andhra Pradesh and Telangana the state market law (or a Supreme Court ruling on it) puts the market fee on the buyer, so the seller's fee is zero, and the answer cites the law. Other states have their own rules we have not checked yet, so there the answer notes that the market fee is not included. Hammali and weighing charges are set by each mandi committee, so the farmer enters them if they pay them; nothing is assumed.",
     "vehicle_title": "Vehicle rate",
     "vehicle_body": "There's no public source for local truck and tractor hire, so the agent asks the farmer for their rate per km and how many quintals one trip carries. Both can be edited on the answer to recalculate.",
     "fail_title": "When a source fails",
@@ -510,7 +510,7 @@
     "c_transport": "Transport: {trips} trips × 2 (both ways) × {km} km × {r}/km = −{t}",
     "c_hammali": "Hammali/weighing: {v}",
     "c_hammali_none": "not added (fill in below if you pay it; each mandi committee sets the rate)",
-    "c_fee": "The mandi fee is paid by the buyer, not deducted from the farmer (MP Krishi Upaj Mandi Adhiniyam 1972, Sec 19(2)).",
+    "c_fee_buyer": "The mandi fee is paid by the buyer, not deducted from the farmer ({law}).",
     "c_fee_other": "Any market fee isn't included: the rules differ by state. If you pay one, add it per quintal in the charges box below.",
     "c_net": "Net: {t}",
     "f_rate": "Vehicle ₹/km",

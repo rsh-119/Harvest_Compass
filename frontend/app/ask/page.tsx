@@ -851,7 +851,7 @@ function ResultView({
           />
           <MoneyRow label={t("m_net")} value={rupee(b.net_total)} width={gross ? b.net_total / gross : 0} cls="bg-leaf-600" strong />
         </ul>
-        <p className="mt-3 text-xs text-ink-500">{r.region === "Madhya Pradesh" ? t("c_fee") : t("c_fee_other")}</p>
+        <p className="mt-3 text-xs text-ink-500">{r.costs.fee_rule ? t("c_fee_buyer", { law: r.costs.fee_rule }) : t("c_fee_other")}</p>
 
         {editable && (
         <details className="mt-4 rounded-2xl bg-white/60 p-4">

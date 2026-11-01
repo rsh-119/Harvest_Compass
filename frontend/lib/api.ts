@@ -57,7 +57,7 @@ export type Result = {
   radius_km: number;
   region?: string | null; // the farmer's state
   notes: string[];
-  costs: { rate_per_km: number; capacity_q: number; other_charges_per_q: number; seller_fee_rate: number };
+  costs: { rate_per_km: number; capacity_q: number; other_charges_per_q: number; seller_fee_rate: number; fee_rule?: string | null };
   trend_per_day?: number | null;
   harvest_days?: { day: string; dry: boolean; uncertain: boolean; one_model?: boolean; reasons: string[] }[];
   weather_note?: "no_forecast";

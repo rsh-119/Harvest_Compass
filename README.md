@@ -101,7 +101,18 @@ frontend/
 
 All prices, forecasts and distances come from these APIs or from cached copies of their responses, stored with `source_url` and `fetched_at`.
 
-**Mandi fee.** In Madhya Pradesh the market fee is paid by the buyer (Krishi Upaj Mandi Adhiniyam 1972, Sec. 19(2)), so the seller's fee is zero. Other states' rules are not yet encoded, and the answer states that the fee is excluded. Hammali and weighing charges vary by mandi committee and are entered by the user.
+**Mandi fee.** In seven states the market law puts the market fee on the buyer, so the seller's fee is zero, and the answer cites the source (`backend/app/data/fees.py`):
+
+| State | Source |
+|---|---|
+| Madhya Pradesh | Krishi Upaj Mandi Adhiniyam 1972, Sec. 19(2) |
+| Uttar Pradesh | Krishi Utpadan Mandi Adhiniyam 1964, Sec. 17(iii)(b); Supreme Court, *Krishi Utpadan Mandi Samiti v. Indian Wood Products*, AIR 1996 SC 1251 |
+| Punjab | Agricultural Produce Markets Act 1961, Sec. 23; Supreme Court, *State of Punjab v. Guranditta Mal Shanti Prakash*, 5 May 2004 |
+| Rajasthan | Agricultural Produce Markets Act 1961, Sec. 17 (collected from licensed traders) |
+| Karnataka | Agricultural Produce Marketing (R&D) Act 1966, Sec. 65(2) |
+| Andhra Pradesh, Telangana | (Agricultural Produce and Livestock) Markets Act 1966, Sec. 12(2) |
+
+Other states are not encoded yet, and there the answer says the market fee is not included. Bihar (APMC Act repealed in 2006) and Kerala (no APMC Act) are left out on purpose: with no state rule, private markets may charge the farmer. Hammali and weighing charges vary by mandi committee and are entered by the user.
 
 ## Evaluation
 
@@ -183,7 +194,7 @@ uv run python -m scripts.warm                   # pre-cache prices and mandi loc
 - data.gov.in history lags by a day and many mandis do not report daily.
 - Only mandis within the farmer's state are compared.
 - Weather forecasts cover 7 days; later dates are shown without a forecast.
-- Market fees are modelled for Madhya Pradesh only.
+- The market-fee rule is encoded for 7 states (MP, UP, Punjab, Rajasthan, Karnataka, Andhra Pradesh, Telangana). In other states the fee isn't included and the answer says so.
 - Rate limiting is in-memory and assumes a single backend instance.
 - The first query from a state with no cached mandi locations is slow, because Nominatim allows one lookup per second; `scripts.warm` pre-fills the cache.
 

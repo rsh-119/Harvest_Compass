@@ -7,6 +7,7 @@ from app.agent.state import AgentState, Mandi
 from app.agent.trace import emit
 from app.clock import today_ist
 from app.data.crops import PERISHABLE
+from app.data.fees import BUYER_PAYS
 from app.scoring import audit_rules as rules
 from app.scoring.harvest_window import Day, risk, score_window
 from app.scoring.net_profit import (
@@ -21,8 +22,8 @@ from app.scoring.net_profit import (
 from app.scoring.trend import slope_per_day
 from app.tools.mandi import PriceRow
 
-# MP Krishi Upaj Mandi Adhiniyam 1972, Sec 19(2): the market fee is payable by the BUYER and
-# "shall not be deducted from the price payable to the seller". So the farmer's fee rate is 0.
+# In the states in BUYER_PAYS the law puts the market fee on the buyer, so the farmer's rate is 0.
+# Elsewhere no fee is added either, and the answer says the market fee isn't included.
 SELLER_FEE_RATE = 0.0
 # Judgement call, not data: if a farther mandi beats a nearer one by at most this much per
 # quintal, recommend the nearer one (less fuel risk, less time, price may move by arrival).
@@ -146,9 +147,9 @@ def compute_result(state: AgentState, today: date) -> dict[str, Any]:
             "capacity_q": p.capacity_q,
             "other_charges_per_q": p.other_charges_per_q,
             "seller_fee_rate": SELLER_FEE_RATE,
-            # The fee rule above is cited for MP only; elsewhere no rule is applied and the UI
-            # says any market fee isn't included.
-            "fee_rule_state": "Madhya Pradesh" if state.get("region") == "Madhya Pradesh" else None,
+            # The law behind the zero fee, or None where we haven't checked the state's law
+            # (the UI then says any market fee isn't included).
+            "fee_rule": BUYER_PAYS.get(state.get("region") or ""),
         },
         "region": state.get("region"),
     }
