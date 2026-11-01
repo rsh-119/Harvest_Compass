@@ -3,6 +3,7 @@ Free credits are limited, so TTS audio is cached by its exact text."""
 
 import base64
 import hashlib
+import logging
 from datetime import UTC, date, datetime
 
 import httpx
@@ -10,8 +11,10 @@ import httpx
 from app.clock import today_ist
 from app.config import settings
 from app.data.cache import Sourced, cached, get_pool
-from app.http import plain, request_json
+from app.http import describe, plain, request_json
 from app.languages import LANGS
+
+log = logging.getLogger("voice")
 
 STT_URL = "https://api.sarvam.ai/speech-to-text"
 TTS_URL = "https://api.sarvam.ai/text-to-speech"
@@ -91,6 +94,8 @@ async def transcribe(audio: bytes, filename: str, mime: str, lang: str = "en") -
         return Sourced(data=text, source_url=STT_URL, fetched_at=datetime.now(UTC), status="live")
     except Exception as e:
         err = plain(e)
+        if err == "unexpected error":  # the farmer sees the short reason; we need the real one
+            log.warning("transcribe: %s", describe(e))
         if isinstance(e, httpx.HTTPStatusError) and e.response.status_code < 500:
             err += f": {e.response.text[:200]}"  # Sarvam's reason; holds no key
         return Sourced(data=None, source_url=STT_URL, fetched_at=None, status="error", error=err)
