@@ -57,6 +57,18 @@ export default function Home() {
         </figure>
       </section>
 
+      <section className="mx-auto max-w-4xl py-10">
+        <h2 className="font-display text-4xl font-bold sm:text-5xl">{h.video_title}</h2>
+        <video
+          src="/demo.mp4"
+          controls
+          playsInline
+          preload="metadata"
+          aria-label={h.video_title}
+          className="glass-strong mt-6 aspect-video w-full rounded-3xl"
+        />
+      </section>
+
       <section className="mx-auto max-w-6xl py-16">
         <h2 className="max-w-3xl font-display text-4xl leading-tight font-bold sm:text-5xl">{h.problem_title}</h2>
         <div className="mt-8 grid max-w-5xl gap-8 text-lg text-ink-700 sm:grid-cols-3">
