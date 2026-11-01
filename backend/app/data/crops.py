@@ -67,6 +67,11 @@ SYNONYMS = {
     "bhindi": "Bhindi(Ladies Finger)", "okra": "Bhindi(Ladies Finger)", "भिंडी": "Bhindi(Ladies Finger)",
     "gobhi": "Cauliflower", "फूलगोभी": "Cauliflower", "patta gobhi": "Cabbage",
     "kela": "Banana", "केला": "Banana",
+    # Banana in other languages; nendran is Kerala's main variety (feed: "Nendra Bale").
+    "nendran": "Banana", "nendra": "Banana", "നേന്ത്രക്കായ": "Banana", "നേന്ത്രപ്പഴം": "Banana",
+    "ഏത്തക്കായ": "Banana", "വാഴക്കുല": "Banana", "വാഴപ്പഴം": "Banana", "വാഴ": "Banana",
+    "வாழைப்பழம்": "Banana", "வாழை": "Banana", "అరటి": "Banana", "అరటిపండు": "Banana",
+    "ಬಾಳೆಹಣ್ಣು": "Banana", "ಬಾಳೆ": "Banana", "কলা": "Banana", "केळी": "Banana", "કેળા": "Banana",
 }  # fmt: skip
 
 

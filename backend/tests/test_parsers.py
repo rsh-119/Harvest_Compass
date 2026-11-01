@@ -235,3 +235,8 @@ def test_spelling_variant() -> None:
     assert spelling_variant("Haathras") == "Hathras"
     assert spelling_variant("Dehradoon") == "Dehradun"
     assert spelling_variant("Indore") == "Indore"
+
+
+def test_banana_regional_names() -> None:
+    for w in ("നേന്ത്രക്കായ", "nendran", "வாழைப்பழம்", "అరటి", "কলা"):
+        assert normalize_crop(w) == "Banana"
