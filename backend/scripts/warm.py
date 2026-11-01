@@ -56,8 +56,10 @@ async def bulk_history(state: str, days: list[date]) -> list[dict[str, Any]]:
 
     async def one(d: date) -> dict[str, list[dict[str, Any]]] | None:
         marker = f"mandi:history-bulk:{state}:{d.isoformat()}"
-        if (today - d).days > FINAL_AFTER_DAYS and await _read(marker):
-            return None  # final day already stored
+        stored = await _read(marker)
+        # final day already stored; a marker of 0 crops is an old empty pull, so pull it again
+        if (today - d).days > FINAL_AFTER_DAYS and stored and stored[0]:
+            return None
         async with sem:
             try:
                 recs = await mandi._fetch_all(
@@ -66,6 +68,13 @@ async def bulk_history(state: str, days: list[date]) -> list[dict[str, Any]]:
             except Exception as e:
                 print(f"{state} {d}: history pull failed, retry next run: {plain(e)}", flush=True)
                 return None
+        if not recs:
+            # data.gov.in sometimes answers a busy day with 0 records and no error. Storing that
+            # as final wiped 8 days of Madhya Pradesh (thousands of rows) on 1 Nov. Never trust
+            # an empty day: skip it and pull again next run (states that never report cost
+            # one request a day).
+            print(f"{state} {d}: 0 records, not stored, retry next run", flush=True)
+            return None
         return split_by_crop(recs)
 
     pulled = dict(zip(days, await asyncio.gather(*(one(d) for d in days)), strict=True))
