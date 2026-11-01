@@ -815,12 +815,14 @@ function ResultView({
       <section className="rounded-[2rem] bg-gradient-to-br from-leaf-700 to-leaf-900 p-6 text-white shadow-xl sm:p-8">
         {answer && (
           <blockquote className="mb-6 rounded-2xl bg-white/10 p-4 text-lg leading-relaxed text-white">
-            <p className="text-xs font-semibold tracking-wide text-leaf-100 uppercase">{t("agent_says")}</p>
-            <p className="mt-1">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs font-semibold tracking-wide text-leaf-100 uppercase">{t("agent_says")}</p>
+              <ShareButton text={answer} />
+            </div>
+            <p className="mt-2">
               {answer}
               {audioUrl && <ListenButton url={audioUrl} />}
             </p>
-            <ShareButton text={answer} />
           </blockquote>
         )}
         <p className="text-sm font-semibold tracking-wide text-leaf-100 uppercase">{t("best")}</p>
@@ -1101,8 +1103,14 @@ function ShareButton({ text }: { text: string }) {
     else window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank", "noopener");
   }
   return (
-    <button onClick={share} className="mt-3 rounded-full bg-white/20 px-4 py-1.5 text-sm font-semibold text-white hover:bg-white/30">
-      📤 {t("share")}
+    <button
+      onClick={share}
+      className="inline-flex items-center gap-2 rounded-full bg-[#25D366] px-4 py-2 text-sm font-bold text-white shadow-md ring-1 ring-white/30 transition hover:bg-[#1ebe5a] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white active:scale-95"
+    >
+      <svg aria-hidden viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M9 8.25H7.5a2.25 2.25 0 0 0-2.25 2.25v9a2.25 2.25 0 0 0 2.25 2.25h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25H15m0-3-3-3m0 0-3 3m3-3V15" />
+      </svg>
+      {t("share")}
     </button>
   );
 }
