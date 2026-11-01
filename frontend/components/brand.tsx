@@ -8,7 +8,8 @@ export const NAV = [
 ] as const;
 
 // The agent's seven steps (names in how.flow): which use the language model, and their icons.
-export const STEP_AI = [true, false, false, false, false, false, true];
+// AI steps: understand, plan (supervisor), recover (supervisor decides a wider search), answer.
+export const STEP_AI = [true, true, false, false, true, false, true];
 export const STEP_ICONS = ["🗣️", "🧭", "📡", "🔍", "🛟", "🧮", "🔊"];
 
 export function Compass({ size = 28 }: { size?: number }) {

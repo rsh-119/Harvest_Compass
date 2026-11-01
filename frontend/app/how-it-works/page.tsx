@@ -171,6 +171,30 @@ export default function HowItWorks() {
         ))}
       </ol>
 
+      {/* The agent team (multi-agent mode) */}
+      <section className="mt-24">
+        <h2 className="max-w-3xl font-display text-4xl font-bold">{h.team_title}</h2>
+        <p className="mt-3 max-w-3xl text-lg text-ink-700">{h.team_body}</p>
+        <ul className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {h.team.map((a, i) => (
+            <li
+              key={i}
+              className={`glass p-5 ${i === 1 ? "ring-2 ring-marigold-400 sm:col-span-2 lg:col-span-1 lg:row-span-2 lg:flex lg:flex-col lg:justify-center" : ""}`}
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="font-display text-xl font-bold">{a.k}</p>
+                <Badge ai={a.ai} h={h} />
+              </div>
+              <p className="mt-2 text-ink-700">{a.v}</p>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-6 max-w-4xl rounded-2xl border border-dashed border-leaf-600/40 bg-leaf-50/70 p-4 text-ink-800">
+          <span aria-hidden className="mr-2">🛡️</span>
+          {h.team_guard}
+        </p>
+      </section>
+
       {/* The checks */}
       <section className="mt-24">
         <h2 className="max-w-3xl font-display text-4xl font-bold">{h.rules_title}</h2>

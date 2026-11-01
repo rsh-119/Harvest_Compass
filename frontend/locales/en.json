@@ -57,7 +57,7 @@
         "d": "In the farmer's language, spoken"
       }
     ],
-    "figcaption": "Each step streams live. A full answer takes about 12 seconds.",
+    "figcaption": "Each step streams live. A full answer usually takes 12 to 20 seconds.",
     "problem_title": "Most farmers sell at the nearest mandi, or wherever a trader says.",
     "problems": [
       "Prices differ from mandi to mandi, and the trip to reach a better one costs money.",
@@ -110,7 +110,7 @@
   },
   "how": {
     "title": "Follow one question, from voice to answer.",
-    "sub": "A farmer asks out loud. Seven steps later they hear which mandi pays the most and which days are dry enough to harvest. AI is used only to understand the question and to word the reply. Everything in between is plain maths you can check.",
+    "sub": "A farmer asks out loud. A small team of agents gets to work, and seconds later the farmer hears which mandi pays the most and which days are dry enough to harvest. AI understands the question, leads the team and words the reply. Every rupee is worked out with plain maths.",
     "ask_label": "The farmer asks",
     "question": "I have 40 quintals of soybean in Sanwer, near Indore. Where should I sell?",
     "legend_ai": "AI",
@@ -131,7 +131,7 @@
       },
       {
         "name": "Plan",
-        "plain": "Works out what this question needs to know, and where to find it.",
+        "plain": "The supervisor agent decides which specialists this question needs, and sends the market and weather agents out together.",
         "out": [
           "Today's mandi prices",
           "Last 30 days of prices",
@@ -159,7 +159,7 @@
       },
       {
         "name": "Recover",
-        "plain": "If a source is down, it switches to a backup and says how fresh that data is. It never fills a gap with a guess.",
+        "plain": "If too few mandis pass the checks, the supervisor sends the market agent out again over a wider area. If a source is down, a backup is used and its date is shown. Gaps are never filled with a guess.",
         "out": [
           "Price feed down",
           "Latest stored report, with its date",
@@ -217,7 +217,7 @@
     "map": {
       "title": "The whole system on one screen",
       "sub": "Where AI is used, where Sarvam voice is used, which live data is fetched, and how the agent repairs itself. Tap any box.",
-      "agent": "LangGraph agent",
+      "agent": "LangGraph agent team",
       "tags": {
         "user": "farmer",
         "voice": "Sarvam voice",
@@ -245,7 +245,7 @@
         },
         "prices": {
           "name": "Mandi prices",
-          "d": "data.gov.in: today's prices and 30 days of history for every mandi in the farmer's state."
+          "d": "data.gov.in: today's prices and 14 days of history for every crop in every state (30 days for soybean and onion), refreshed every morning at 4 am."
         },
         "weather": {
           "name": "Weather",
@@ -304,7 +304,47 @@
           "d": "Sarvam reads the answer aloud when the question was spoken or read-aloud is on. A daily limit protects credits."
         }
       }
-    }
+    },
+    "team_title": "A team of agents, led by a supervisor",
+    "team_body": "Each agent has one job. The supervisor decides who works and when; the others use real data and plain rules. You can see which agent did each step in the log on the ask page.",
+    "team": [
+      {
+        "k": "Intake",
+        "ai": true,
+        "v": "Turns the farmer's words into clear facts, and asks back when something is missing."
+      },
+      {
+        "k": "Supervisor",
+        "ai": true,
+        "v": "Leads the team: decides which specialists to send, and after the checks whether to search a wider area."
+      },
+      {
+        "k": "Market",
+        "ai": false,
+        "v": "Today's prices, recent history, the mandis nearby and the real road distance to each."
+      },
+      {
+        "k": "Weather",
+        "ai": false,
+        "v": "Rain forecast from two models. Works at the same time as the market agent."
+      },
+      {
+        "k": "Auditor",
+        "ai": false,
+        "v": "Throws out old, odd or non-comparable prices and keeps the reason to show."
+      },
+      {
+        "k": "Calculator",
+        "ai": false,
+        "v": "Price minus transport, for every mandi, plus the safe harvest days. Plain maths, never AI."
+      },
+      {
+        "k": "Explainer",
+        "ai": true,
+        "v": "Writes the reply in the farmer's language. Any number it didn't get from the calculator is rejected."
+      }
+    ],
+    "team_guard": "The supervisor only sees counts, never the farmer's words or any prices, so a question can't trick it. It can only send agents, search wider (up to 250 km, two extra rounds) or hand over. If it fails or is slow, fixed rules take over and the log says so."
   },
   "results": {
     "title": "What we measured",
@@ -388,7 +428,7 @@
     },
     "sources": [
       {
-        "use": "Today's mandi prices (resource 9ef84268-…) and variety-wise price history (35985678-…)",
+        "use": "Today's mandi prices (resource 9ef84268-…) and variety-wise price history (35985678-…). Refreshed every morning at 4 am IST: 14 days of history for every crop in every state.",
         "licence": "Government Open Data License – India"
       },
       {
@@ -412,7 +452,7 @@
         "licence": "API terms"
       },
       {
-        "use": "Language model access, for reading the question and phrasing the answer only",
+        "use": "Language model, for reading the question, leading the agent team (supervisor) and wording the answer. Never for prices or money.",
         "licence": "API terms"
       }
     ],
