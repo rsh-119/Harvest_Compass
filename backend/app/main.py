@@ -129,13 +129,11 @@ async def transcribe(audio: UploadFile, lang: Annotated[LangCode, Form()] = "en"
         raise HTTPException(400, "empty audio")
     if len(data) > 5_000_000:  # Sarvam's REST endpoint is for clips under 30 s
         raise HTTPException(413, "recording too long")
-    res = await voice.transcribe(
-        data,
-        audio.filename or "audio.webm",
-        audio.content_type or "application/octet-stream",
-        lang,
-    )
+    # Chrome sends 'audio/webm;codecs=opus'; give Sarvam the plain type
+    mime = (audio.content_type or "application/octet-stream").split(";")[0].strip()
+    res = await voice.transcribe(data, audio.filename or "audio.webm", mime, lang)
     if res.data is None:
+        log.warning("transcribe failed (%d bytes, %s, %s): %s", len(data), mime, lang, res.error)
         if res.error and res.error.startswith(("daily voice limit", "voice is switched off")):
             raise HTTPException(429, "voice limit for today reached")
         raise HTTPException(502, f"speech-to-text failed: {res.error}")

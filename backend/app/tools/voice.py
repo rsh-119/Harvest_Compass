@@ -5,6 +5,8 @@ import base64
 import hashlib
 from datetime import UTC, date, datetime
 
+import httpx
+
 from app.clock import today_ist
 from app.config import settings
 from app.data.cache import Sourced, cached, get_pool
@@ -82,16 +84,16 @@ async def transcribe(audio: bytes, filename: str, mime: str, lang: str = "en") -
         )
         text = str(body.get("transcript", "")).strip()
         if not text:
-            raise ValueError("empty transcript")
+            err = "no speech heard in the recording"
+            return Sourced(
+                data=None, source_url=STT_URL, fetched_at=None, status="error", error=err
+            )
         return Sourced(data=text, source_url=STT_URL, fetched_at=datetime.now(UTC), status="live")
     except Exception as e:
-        return Sourced(
-            data=None,
-            source_url=STT_URL,
-            fetched_at=None,
-            status="error",
-            error=plain(e),
-        )
+        err = plain(e)
+        if isinstance(e, httpx.HTTPStatusError) and e.response.status_code < 500:
+            err += f": {e.response.text[:200]}"  # Sarvam's reason; holds no key
+        return Sourced(data=None, source_url=STT_URL, fetched_at=None, status="error", error=err)
 
 
 async def speak(text: str, lang: str = "hi") -> Sourced[bytes]:
