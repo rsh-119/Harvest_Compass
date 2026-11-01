@@ -56,6 +56,35 @@ Each node streams trace events to the frontend over Server-Sent Events, so the u
 | Compute | Pure functions | Net price per quintal, conservative "bad-day" price, harvest-day safety, and the 14-day price trend for "should I wait?" questions. If a farther mandi wins by ₹50/quintal or less, the nearer one is recommended. |
 | Explain | LLM + validator | Phrase the result in the farmer's language. Replies with unknown numbers or altered mandi names are rejected, retried once, then replaced by a fixed template. |
 
+### Multi-agent mode (`AGENT_MODE=multi`)
+
+The same tools, run as a team of agents directed by an LLM supervisor (LangGraph supervisor pattern, `backend/app/agent/multi_graph.py`):
+
+```mermaid
+flowchart LR
+  IN[Intake agent<br/>LLM] -->|clarify?| ASK[ask the farmer]
+  IN --> SV[Supervisor agent<br/>LLM, tool-calling]
+  SV --> MK[Market agent<br/>prices, history, mandis, roads]
+  SV --> WE[Weather agent<br/>ECMWF + GFS]
+  MK --> AU[Auditor agent<br/>rules]
+  WE --> AU
+  AU --> RV[Supervisor review<br/>LLM]
+  RV -->|widen search| MK
+  RV --> CA[Calculator<br/>deterministic ₹/q] --> XP[Explainer agent<br/>LLM + number verifier]
+```
+
+| Agent | Kind | Job |
+|---|---|---|
+| Intake | LLM | Free text → typed intent; asks back when unsure |
+| Supervisor | LLM, tool-calling | Picks which specialists run (dispatch), then after the audit decides to widen the market search or hand over |
+| Market | Tools | Today's prices, 30-day history, locate mandis, road distances |
+| Weather | Tools | Rain forecast from two models; runs in parallel with Market |
+| Auditor | Rules | Stale, odd or inconsistent prices out |
+| Calculator | Deterministic | Money in hand per quintal, harvest days; the LLM never computes money |
+| Explainer | LLM + verifier | Answer in the farmer's language; rejects any number the calculator didn't produce |
+
+Guardrails on the supervisor: it sees a board of counts only (no farmer text, no prices), its tools allow only `dispatch`, `widen_search` (≤ 250 km, ≤ 2 extra rounds) and `proceed`, each decision times out after 6 s, and any error or out-of-bounds move falls back to the pipeline's rules and says so in the trace. Every trace line carries the agent that produced it. `scripts/compare_modes.py` runs the same questions through both modes; on 1 Nov 2026 all 8 cases (incl. an injection attempt and two source failures) gave the same mandi and ₹/q, with 0 invented numbers. Switch per question with `"mode": "multi"` in `/ask`, or for the whole service with `AGENT_MODE`.
+
 ## Tech stack
 
 | Layer | Technology |
@@ -72,7 +101,7 @@ Each node streams trace events to the frontend over Server-Sent Events, so the u
 ```
 backend/
   app/
-    agent/        LangGraph graph, state and nodes (understand, plan, execute, audit, repair, compute, explain)
+    agent/        LangGraph graphs (pipeline: graph.py; multi-agent: multi_graph.py + supervisor.py), state and nodes
     tools/        one module per external source: mandi, weather, routing, geocode, voice
     scoring/      net profit, harvest window, trend, audit rules (pure functions)
     backtest/     historical replay of the ranking strategy
