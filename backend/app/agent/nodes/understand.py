@@ -137,6 +137,30 @@ async def extract(text: str, question: str | None = None) -> Intent:
     )
 
 
+SCOPE_SCHEMA = {
+    "type": "object",
+    "properties": {"about_selling": {"type": "boolean"}},
+    "required": ["about_selling"],
+}
+SCOPE_PROMPT = """This app only helps a farmer SELL a crop they have or will soon harvest: which mandi
+pays most, when to harvest, whether to wait. Set about_selling=true if the message is about that, or
+answers the assistant's question. Set false if it asks something else: which crop to grow, seeds,
+fertiliser, pests, loans, schemes, general chat. The message may be in any Indian language."""
+
+
+async def about_selling(text: str, question: str | None = None) -> bool:
+    """A separate small call, kept out of extract(): adding this field to the main form made the
+    model drop the vehicle rate in 4 of 9 tries."""
+    user = text if question is None else f"Assistant asked: {question}\nFarmer answered: {text}"
+    msg = await chat(
+        [{"role": "system", "content": SCOPE_PROMPT}, {"role": "user", "content": user}],
+        tools=[{"type": "function", "function": {"name": "scope", "parameters": SCOPE_SCHEMA}}],
+        tool_choice={"type": "function", "function": {"name": "scope"}},
+    )
+    args = json.loads(msg["tool_calls"][0]["function"]["arguments"])
+    return args.get("about_selling") is not False
+
+
 def summary(i: Intent) -> str:
     """'soybean, 40 quintal, Sanwer (Indore), ₹30/km, 40 q per trip' for the trace."""
     dates = None
@@ -269,6 +293,20 @@ async def understand(state: AgentState) -> dict[str, Any]:
         "आपकी बात समझी",
         intent=intent.model_dump(mode="json"),
     )
+    # "Which crops should I grow?" used to loop on "Which crop are you selling?". Only checked
+    # when no quantity was said, so a normal sell question never pays for (or risks) this call.
+    if said.quantity is None and not await about_selling(req.text, req.question):
+        return await _ask(
+            "इसमें मैं अभी मदद नहीं कर सकता (जैसे कौन सी फसल उगाएँ, खाद, दवा)। मैं तैयार फसल "
+            "बेचने में मदद करता हूँ: ढुलाई के बाद कौन सी मंडी सबसे ज़्यादा देगी, और कटाई के लिए कौन "
+            "से दिन सूखे रहेंगे। अपनी फसल, मात्रा और गाँव बताइए।",
+            "I can't help with that yet (such as what to grow, fertiliser or pests). I help you "
+            "sell a crop you have: which mandi pays the most after transport, and which days are "
+            "dry enough to harvest. Tell me your crop, how much you have, and your village.",
+            intent,
+            req.lang,
+            unsupported=True,  # the next message starts a fresh question
+        )
     if intent.crop is None:
         if intent.crop_word:
             return await _ask(
