@@ -61,11 +61,13 @@ def no_answer(result: dict[str, Any], crop: str) -> tuple[str, str]:
             f"No mandi in {region} has reported {crop} prices recently, so I can't recommend one.",
             f"{region} की किसी मंडी ने हाल में {crop} का भाव नहीं भेजा, इसलिए कोई मंडी नहीं बता सकते।",
         )
-    n = len(result.get("excluded", []))
+    ex = result.get("excluded", [])
+    # Say the real reasons (map lookup failed, too far, stale price...), not a blanket "no price".
+    en = list(dict.fromkeys(r for m in ex for r in m["reasons"]))[:3]
+    hi = list(dict.fromkeys(r for m in ex for r in m["reasons_hi"]))[:3]
     return (
-        f"None of the {n} mandis checked near you had a price I could trust today. The reasons "
-        "are listed under each step.",
-        f"आपके पास जाँची गई {n} मंडियों में से किसी का भाव आज भरोसे लायक नहीं था। कारण हर कदम में लिखे हैं।",
+        f"I found {len(ex)} mandi(s) near you but couldn't use any: " + "; ".join(en) + ".",
+        f"आपके पास {len(ex)} मंडी मिलीं पर किसी का उपयोग नहीं हो सका: " + "; ".join(hi) + "।",
     )
 
 

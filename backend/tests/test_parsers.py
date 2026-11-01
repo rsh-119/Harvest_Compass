@@ -171,3 +171,17 @@ def test_lasalgaon_sub_yards_are_their_own_towns() -> None:
     assert sub_yard_town("Lasalgaon(Vinchur)") == ("Vinchur", "Nashik")
     assert sub_yard_town("Lasalgaon (Niphad)") == ("Niphad", "Nashik")
     assert sub_yard_town("APMC Lasalgaon") is None
+
+
+def test_no_answer_names_real_reasons() -> None:
+    from app.agent.nodes.explain import no_answer
+
+    ex = {
+        "market": "X",
+        "district": "D",
+        "reasons": ["Could not find X on the map; excluded"],
+        "reasons_hi": ["X नक्शे पर नहीं मिली"],
+    }
+    en, hi = no_answer({"excluded": [ex, ex]}, "wheat")
+    assert "map" in en and "trust" not in en
+    assert en.count("Could not find") == 1  # same reason from repair rounds shown once

@@ -483,7 +483,8 @@ function Pipeline({ events, busy, final }: { events: TraceEvent[]; busy: boolean
     if (k === 0 && stopped) return t("stg_asked");
     if (k === 2 && n) return t("stg_sources", { n: by[k].filter((e) => e.event === "tool_result").length || n });
     if (k === 3 && n) {
-      const out = by[k].filter((e) => e.event === "audit_reject").length;
+      // repair rounds re-audit the same mandi, so count mandis, not reject events
+      const out = new Set(by[k].filter((e) => e.event === "audit_reject").map((e) => e.mandi ?? e.en)).size;
       return out ? t("stg_left_out", { n: out }) : t("stg_all_ok");
     }
     if (k === 4) return n ? t("stg_fixed", { n }) : final && !stopped ? t("not_needed") : "";
@@ -755,7 +756,9 @@ function ResultView({
                 {r.runner_up_gap.price > 0
                   ? t("ru_lower", { p: rupee(r.runner_up_gap.price) })
                   : t("ru_higher", { p: rupee(-r.runner_up_gap.price), t: rupee(r.runner_up_gap.transport_per_quintal) })}{" "}
-                {t("ru_total", { p: rupee(r.runner_up_gap.net_per_quintal) })}
+                {r.runner_up_gap.net_per_quintal < 0
+                  ? t("ru_more_far", { p: rupee(-r.runner_up_gap.net_per_quintal), km: Math.round(r.runner_up.road_km - b.road_km) })
+                  : t("ru_total", { p: rupee(r.runner_up_gap.net_per_quintal) })}
               </p>
             )}
           </div>
@@ -901,7 +904,12 @@ function ResultView({
                 {t("col_price")} {rupee(m.price_used)} · {m.road_km < 1 ? t("same_town_short") : `${Math.round(m.road_km)} km`} ·{" "}
                 {t("col_transport")} {rupee(m.transport_total)}
                 {m.age_days > 0 && ` · ${old(m.age_days)}`}
-                {i > 0 && ` · ${t("vs_best", { p: rupee(top - m.net_per_quintal) })}`}
+                {i > 0 &&
+                  ` · ${
+                    m.net_per_quintal > r.ranking[0].net_per_quintal
+                      ? t("vs_best_more", { p: rupee(m.net_per_quintal - r.ranking[0].net_per_quintal), km: Math.round(m.road_km - r.ranking[0].road_km) })
+                      : t("vs_best", { p: rupee(r.ranking[0].net_per_quintal - m.net_per_quintal) })
+                  }`}
               </p>
             </li>
           ))}
