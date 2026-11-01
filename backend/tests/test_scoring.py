@@ -233,7 +233,10 @@ def test_card_adds_up_when_median_ends_in_half() -> None:
         "quantity_q": 30.0, "mandis": [m], "history": hist, "plan": [], "notes": [],
         "radius_km": 150.0, "region": "Madhya Pradesh",
     }  # fmt: skip
-    b = compute_result(state, D0)["best"]  # type: ignore[arg-type]
+    out = compute_result(state, D0)  # type: ignore[arg-type]
+    b = out["best"]
+    assert out["costs"]["fee_rule"].startswith("MP Krishi Upaj")  # buyer pays in MP
+    assert [p for _, p in b["history"]] == [3070, 3075, 3076, 3081]  # chart: oldest first
     assert b["price_used"] == 3076  # 3075.5 rounded half up, once
     assert b["road_km"] == 2.4
     assert b["transport_total"] == 1 * 2 * 2.4 * 25  # 120, from the km shown on the card

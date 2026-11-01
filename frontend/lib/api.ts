@@ -41,6 +41,7 @@ export type MandiRow = {
   net_total: number;
   conservative_net_per_quintal: number | null;
   info: string[];
+  history?: [string, number][]; // this mandi's own daily modal price, last 14 days
 };
 
 export type Source = { url: string; status: string; fetched_at: string | null; attribution?: string };

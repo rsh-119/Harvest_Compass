@@ -26,6 +26,8 @@ from app.ratelimit import limit
 from app.tools import voice
 
 logging.basicConfig(level=logging.INFO)
+# httpx logs every request URL at INFO, and data.gov.in URLs carry our api-key.
+logging.getLogger("httpx").setLevel(logging.WARNING)
 log = logging.getLogger("api")
 
 

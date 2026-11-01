@@ -91,6 +91,8 @@ def compute_result(state: AgentState, today: date) -> dict[str, Any]:
         price = rupees(ranking_price(list(week.values()), m.row.modal_price))
         km = round(m.route.km, 1)
         res = net_profit(price, km, costs)
+        two_weeks = dict(_series(history, m, today - timedelta(days=13)))
+        two_weeks[m.row.arrival_date] = m.row.modal_price  # for the chart: same values as `week`
         cp_raw = conservative_price([v for _, v in _series(history, m, today - timedelta(days=14))])
         cp = None if cp_raw is None else rupees(cp_raw)
         cons_net = None if cp is None else net_profit(cp, km, costs).net_per_quintal
@@ -120,6 +122,7 @@ def compute_result(state: AgentState, today: date) -> dict[str, Any]:
             "conservative_price": cp,
             "conservative_net_per_quintal": None if cons_net is None else rupees(cons_net),
             "info": [f.en for f in m.findings],
+            "history": [[d.isoformat(), v] for d, v in sorted(two_weeks.items())],
         }
     order = rank(cands, NEAR_TIE_PER_Q)
     ranked = [rows[c.key] for c in order]

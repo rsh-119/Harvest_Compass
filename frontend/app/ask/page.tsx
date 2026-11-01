@@ -27,6 +27,18 @@ const MandiMap = dynamic(() => import("@/components/MandiMap"), { ssr: false });
 
 // No vehicle defaults: the agent asks. Other charges start at 0 = "none entered" (labelled so).
 const DEFAULT_PARAMS: Params = { other_charges_per_q: 0 };
+// The farmer's last vehicle, kept in this browser. Only ever offered as a button when the agent
+// asks about the vehicle: a new question never picks it up silently (test C2).
+type Vehicle = { rate_per_km: number; capacity_q: number; other_charges_per_q: number };
+const VEHICLE_KEY = "hc_vehicle";
+const loadVehicle = (): Vehicle | null => {
+  try {
+    const v = JSON.parse(localStorage.getItem(VEHICLE_KEY) ?? "null");
+    return v && v.rate_per_km > 0 && v.capacity_q > 0 ? v : null;
+  } catch {
+    return null;
+  }
+};
 
 const rupee = (n: number) => "₹" + Math.round(n).toLocaleString("en-IN");
 const fmtTime = (iso: string | null | undefined, locale: string) =>
@@ -119,6 +131,8 @@ export default function AskPage() {
   const [server, setServer] = useState<"checking" | "waking" | "up" | "down">("checking");
   const [srcHealth, setSrcHealth] = useState<Health | null>(null);
   const [faults, setFaults] = useState<string[]>([]);
+  const [vehicle, setVehicle] = useState<Vehicle | null>(null);
+  useEffect(() => setVehicle(loadVehicle()), []);
 
   useEffect(() => {
     // Free hosting sleeps when idle: say so if the first ping is slow, instead of looking broken.
@@ -162,6 +176,11 @@ export default function AskPage() {
           if (f.result) {
             const c = f.result.costs; // show what was used, in the edit boxes
             setParams((p) => ({ ...p, rate_per_km: c.rate_per_km, capacity_q: c.capacity_q, other_charges_per_q: c.other_charges_per_q }));
+            const v = { rate_per_km: c.rate_per_km, capacity_q: c.capacity_q, other_charges_per_q: c.other_charges_per_q };
+            setVehicle(v);
+            try {
+              localStorage.setItem(VEHICLE_KEY, JSON.stringify(v));
+            } catch {} // private mode: just not remembered
           }
           patchLast({ final: f });
         } else {
@@ -206,6 +225,15 @@ export default function AskPage() {
 
   function confirmPlace(p: Place) {
     run({ text: lastText.current, previous: pending?.intent, place: p, params }, `${t("yes")}, ${p.name}`);
+  }
+
+  function pickVehicle(v: Vehicle) {
+    const p = { ...params, ...v };
+    setParams(p);
+    run(
+      { text: lastText.current, previous: pending?.intent, question: pending?.text ?? pending?.en, place: pending?.place, params: p },
+      t("use_vehicle", { rate: rupee(v.rate_per_km), cap: v.capacity_q }),
+    );
   }
 
   function confirmQty() {
@@ -313,6 +341,15 @@ export default function AskPage() {
               {asking.needs === "confirm_qty" && (
                 <button onClick={confirmQty} className="mt-3 rounded-full bg-white px-4 py-2 text-sm font-semibold shadow-sm ring-1 ring-amber-300 hover:bg-amber-100">
                   {t("yes_qty")}
+                </button>
+              )}
+              {asking.needs === "vehicle" && vehicle && (
+                <button
+                  onClick={() => pickVehicle(vehicle)}
+                  disabled={busy}
+                  className="mt-3 rounded-full bg-white px-4 py-2 text-sm font-semibold shadow-sm ring-1 ring-amber-300 hover:bg-amber-100"
+                >
+                  🚜 {t("use_vehicle", { rate: rupee(vehicle.rate_per_km), cap: vehicle.capacity_q })}
                 </button>
               )}
               {asking.options && (
@@ -706,6 +743,7 @@ function ResultView({
               {answer}
               {audioUrl && <ListenButton url={audioUrl} />}
             </p>
+            <ShareButton text={answer} />
           </blockquote>
         )}
         <p className="text-sm font-semibold tracking-wide text-leaf-100 uppercase">{t("best")}</p>
@@ -900,6 +938,7 @@ function ResultView({
                   style={{ width: `${Math.max(6, ((m.net_per_quintal - floor) / (top - floor)) * 100)}%` }}
                 />
               </div>
+              <Sparkline points={m.history} label={t("price_14d")} />
               <p className="mt-1 text-xs text-ink-500">
                 {t("col_price")} {rupee(m.price_used)} · {m.road_km < 1 ? t("same_town_short") : `${Math.round(m.road_km)} km`} ·{" "}
                 {t("col_transport")} {rupee(m.transport_total)}
@@ -973,6 +1012,40 @@ function ResultView({
         )}
       </details>
     </div>
+  );
+}
+
+function ShareButton({ text }: { text: string }) {
+  const { t } = useLang();
+  function share() {
+    const msg = `${text}\n${location.origin}/ask`;
+    // Phones open the share sheet (WhatsApp is usually first); desktops open WhatsApp Web.
+    if (navigator.share) navigator.share({ text: msg }).catch(() => {});
+    else window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank", "noopener");
+  }
+  return (
+    <button onClick={share} className="mt-3 rounded-full bg-white/20 px-4 py-1.5 text-sm font-semibold text-white hover:bg-white/30">
+      📤 {t("share")}
+    </button>
+  );
+}
+
+// This mandi's own daily price over the last 14 days, as a tiny line. Hidden with < 2 days.
+function Sparkline({ points, label }: { points?: [string, number][]; label: string }) {
+  if (!points || points.length < 2) return null;
+  const ys = points.map(([, v]) => v);
+  const lo = Math.min(...ys);
+  const hi = Math.max(...ys);
+  const span = hi - lo || 1; // flat line when every day had the same price
+  const w = 120;
+  const h = 24;
+  const xy = ys.map((v, i) => `${((i / (ys.length - 1)) * w).toFixed(1)},${(h - 2 - ((v - lo) / span) * (h - 4)).toFixed(1)}`);
+  const desc = `${label}: ${rupee(lo)} – ${rupee(hi)}`;
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} width={w} height={h} role="img" aria-label={desc} className="mt-1 text-leaf-600">
+      <title>{desc}</title>
+      <polyline points={xy.join(" ")} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+    </svg>
   );
 }
 
