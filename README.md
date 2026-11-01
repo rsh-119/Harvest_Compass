@@ -92,21 +92,6 @@ flowchart LR
 
 The supervisor is kept on a short leash. It sees a board of counts only (no farmer text, no prices). Its only tools are `dispatch`, `widen_search` (up to 250 km, at most 2 extra rounds) and `proceed`. Each decision times out after 6 s, and any error or out-of-bounds move falls back to the pipeline's rules, with a note in the trace. `scripts/compare_modes.py` runs the same questions through both modes: on 1 Nov 2026 all 8 cases (including an injection attempt and two source failures) gave the same mandi and ₹/q, with 0 invented numbers. Switch per question with `"mode": "multi"` in `/ask`, or for the whole service with `AGENT_MODE`.
 
-## Mandi fees
-
-In seven states the market law puts the mandi fee on the buyer, so the farmer pays nothing, and the answer names the law (`backend/app/data/fees.py`). Each entry was checked against the Act's text or a Supreme Court judgment:
-
-| State | Source |
-|---|---|
-| Madhya Pradesh | Krishi Upaj Mandi Adhiniyam 1972, Sec. 19(2) |
-| Uttar Pradesh | Krishi Utpadan Mandi Adhiniyam 1964, Sec. 17(iii)(b); Supreme Court, *Krishi Utpadan Mandi Samiti v. Indian Wood Products*, AIR 1996 SC 1251 |
-| Punjab | Agricultural Produce Markets Act 1961, Sec. 23; Supreme Court, *State of Punjab v. Guranditta Mal Shanti Prakash*, 5 May 2004 |
-| Rajasthan | Agricultural Produce Markets Act 1961, Sec. 17 (collected from licensed traders) |
-| Karnataka | Agricultural Produce Marketing (R&D) Act 1966, Sec. 65(2) |
-| Andhra Pradesh, Telangana | (Agricultural Produce and Livestock) Markets Act 1966, Sec. 12(2) |
-
-In other states the answer says the market fee isn't included. Bihar (APMC Act repealed in 2006) and Kerala (no APMC Act) are left out on purpose: without a state rule, private markets may charge the farmer. Hammali and weighing charges are set by each mandi committee, so the farmer enters them if they pay them.
-
 ## Does it work?
 
 **Backtest** (`app/backtest/run_backtest.py`). We replayed 60 days (31 Aug – 30 Oct 2026) for 30 real villages in Madhya Pradesh using the real price history. Each day the strategy picks a mandi using only what was known that day, and is scored on the next day's price against simply going to the nearest mandi. Mean gain in ₹ per quintal at assumed transport rates of ₹0.5 / 1 / 2 per quintal-km:
@@ -248,7 +233,7 @@ uv run python -m scripts.translate_ui           # fill missing UI strings in the
 These come from questions we couldn't answer yet and gaps we found while testing.
 
 1. **Best month to sell.** Show which months usually pay best for a crop at the farmer's nearby mandis, from data.gov.in history going back to 2010. This answers *"if I plant now and harvest in three months, will prices be good then?"* using past patterns only, never a forecast.
-2. **Sowing calendar.** Sowing and harvest windows per crop and state, typed in from official ICAR and state agriculture department calendars, with the source cited the same way the mandi-fee rules are.
+2. **Sowing calendar.** Sowing and harvest windows per crop and state, typed in from official ICAR and state agriculture department calendars, with each source cited.
 3. **MSP comparison.** Show how far the mandi price is above or below this year's minimum support price, and point to a government procurement centre when the mandi pays less.
 4. **Price alerts.** *"Tell me when Indore pays ₹7,200."* Free options exist: browser push notifications or a Telegram bot, run after the daily cache refresh.
 5. **Mandi fees for more states.** Maharashtra, Haryana, Gujarat and Tamil Nadu first, each checked against the Act's text.
