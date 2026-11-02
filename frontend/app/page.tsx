@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import LiveNumbers from "@/components/LiveNumbers";
 import { useLang } from "@/lib/i18n";
 
 // Real lines from the agent's log, run on 31 Oct 2026 for 40 q soybean near Ujjain. Quoted as
@@ -110,19 +109,6 @@ export default function Home() {
           </ul>
           <figcaption className="mt-3 text-xs text-ink-500">{h.audit_caption}</figcaption>
         </figure>
-      </section>
-
-      <section className="mx-auto max-w-6xl py-16">
-        <h2 className="font-display text-4xl font-bold sm:text-5xl">{h.measured_title}</h2>
-        <p className="mt-4 max-w-3xl text-lg text-ink-700">{h.measured_body}</p>
-        <div className="mt-8">
-          <LiveNumbers />
-        </div>
-        <p className="mt-4 text-sm text-ink-600">
-          <Link href="/results" className="font-semibold text-leaf-800 underline">
-            {h.measured_link}
-          </Link>
-        </p>
       </section>
 
       <section className="mx-auto max-w-6xl py-10">
