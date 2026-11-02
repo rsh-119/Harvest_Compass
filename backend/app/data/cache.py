@@ -53,8 +53,15 @@ async def get_pool() -> AsyncConnectionPool | None:
     if _pool is None and settings.database_url:
         # 20 connections let ~100 concurrent lookups (one per mandi) finish in under a second.
         # Bounded wait: if the database is down we skip the cache rather than make farmers wait.
+        # Neon drops idle connections (compute suspend), so test each one before handing it out;
+        # otherwise the first query after a quiet spell fails with "SSL connection closed".
         _pool = AsyncConnectionPool(
-            settings.database_url, min_size=1, max_size=20, open=False, timeout=10
+            settings.database_url,
+            min_size=1,
+            max_size=20,
+            open=False,
+            timeout=10,
+            check=AsyncConnectionPool.check_connection,
         )
         await _pool.open()
         async with _pool.connection() as conn:
