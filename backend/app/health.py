@@ -37,6 +37,35 @@ async def _mandi() -> None:
         raise RuntimeError("no records field")
 
 
+async def _mandi_cache_age_h() -> float | None:
+    """Hours since the daily warm last stored today's prices. data.gov.in refuses cloud IPs,
+    so the hosted backend answers from this cache."""
+    pool = await get_pool()
+    if pool is None:
+        return None
+    async with pool.connection() as conn:
+        cur = await conn.execute(
+            "SELECT EXTRACT(EPOCH FROM now() - max(fetched_at)) / 3600 FROM api_cache"
+            " WHERE key LIKE 'mandi:current:%'"
+        )
+        row = await cur.fetchone()
+    return None if row is None or row[0] is None else float(row[0])
+
+
+async def _mandi_status() -> dict[str, Any]:
+    live = await _check(_mandi)
+    if live["ok"]:
+        return live
+    try:
+        age = await _mandi_cache_age_h()
+    except Exception:
+        age = None
+    if age is not None and age <= 30:  # warm runs daily at 4 am IST
+        note = f"live API blocks cloud servers; using prices stored {age:.0f} h ago"
+        return {"ok": True, "note": note}
+    return live
+
+
 async def _weather() -> None:
     params = {"latitude": settings.center_lat, "longitude": settings.center_lon}
     await request_json(
@@ -67,7 +96,7 @@ async def status() -> dict[str, Any]:
     if _memo and time.monotonic() - _memo[0] < 60:
         return _memo[1]
     names = ("database", "mandi_prices", "weather", "routing")
-    results = await asyncio.gather(*(_check(f) for f in (_db, _mandi, _weather, _routing)))
+    results = await asyncio.gather(_check(_db), _mandi_status(), _check(_weather), _check(_routing))
     out: dict[str, Any] = dict(zip(names, results, strict=True))
     out["geocoding"] = {"ok": True, "note": "not probed (Nominatim policy); cached lookups"}
     out["llm"] = {"ok": bool(settings.openrouter_api_key), "note": "configured, not probed"}

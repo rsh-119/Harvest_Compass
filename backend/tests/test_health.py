@@ -62,3 +62,21 @@ def test_voice_budget_refuses_after_limit(monkeypatch: pytest.MonkeyPatch) -> No
         return ok
 
     assert asyncio.run(spend_three()) == 2
+
+
+def test_mandi_ok_from_fresh_cache_when_live_api_refuses(monkeypatch: pytest.MonkeyPatch) -> None:
+    import asyncio
+
+    from app import health
+
+    async def refused() -> None:
+        raise RuntimeError("refused")
+
+    monkeypatch.setattr(health, "_mandi", refused)
+    for age, ok in ((5.0, True), (40.0, False), (None, False)):
+
+        async def cache_age(a: float | None = age) -> float | None:
+            return a
+
+        monkeypatch.setattr(health, "_mandi_cache_age_h", cache_age)
+        assert asyncio.run(health._mandi_status())["ok"] is ok
