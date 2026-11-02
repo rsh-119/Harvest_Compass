@@ -280,3 +280,21 @@ def test_same_day_reports_use_the_median() -> None:
             (D0 - timedelta(days=2), 7100),
             (D0 - timedelta(days=1), 6862.5),
         ]
+
+
+def test_too_far_message_never_reads_equal_to_the_limit() -> None:
+    from app.agent.nodes.audit import _check_place
+    from app.agent.state import Mandi
+    from app.tools.geocode import Place
+    from app.tools.routing import Route
+
+    m = Mandi(
+        key="Khed|Pune",
+        market="Khed",
+        district="Pune",
+        location=Place(name="Khed", display_name="Khed", lat=18.7, lon=73.9),
+        route=Route(km=160, minutes=150.4),
+    )
+    f = _check_place(m, 150)
+    assert f is not None and f.rule == "too_far"
+    assert f.en == "151 min drive is over the 150 min limit"

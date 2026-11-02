@@ -1,6 +1,7 @@
 """Check every mandi's data before it can be ranked. Rules live in scoring/audit_rules.py.
 A mandi is usable only if nothing rejected or flagged it ("info" findings are only shown)."""
 
+import math
 from datetime import date, timedelta
 from typing import Any
 
@@ -33,8 +34,8 @@ def _check_place(m: Mandi, cap_min: float) -> Finding | None:
         return Finding(
             "too_far",
             "reject",
-            f"{m.route.minutes / 60:.1f} h drive is over the {cap_min / 60:.1f} h limit",
-            f"{m.route.minutes / 60:.1f} घंटे का रास्ता, सीमा {cap_min / 60:.1f} घंटे",
+            f"{math.ceil(m.route.minutes)} min drive is over the {cap_min:.0f} min limit",
+            f"{math.ceil(m.route.minutes)} मिनट का रास्ता, सीमा {cap_min:.0f} मिनट",
         )
     return None
 
