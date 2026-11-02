@@ -59,6 +59,7 @@ export default function Home() {
 
       <section className="mx-auto max-w-4xl py-10">
         <h2 className="font-display text-4xl font-bold sm:text-5xl">{h.video_title}</h2>
+        <p className="mt-4 max-w-2xl text-lg text-ink-700">{h.video_sub}</p>
         <video
           src="/demo.mp4"
           controls

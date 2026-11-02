@@ -25,7 +25,8 @@
     "hero_sub": "Harvest Compass tells a farmer which mandi pays the most once transport is paid for, and which days are dry enough to harvest. Wheat, paddy, soybean, onion, potato, pulses, vegetables and more. Ask in English, Hindi or 21 other Indian languages, by voice or text.",
     "cta_ask": "Ask a question",
     "cta_how": "See how it works",
-    "video_title": "Watch the demo",
+    "video_title": "How a farmer uses it",
+    "video_sub": "A farmer asks about the crop they want to sell, in their own words, and gets the mandi that pays most after transport and the dry days to harvest.",
     "figure_label": "What the agent does with one question",
     "demo_question": "I have 40 quintals of soybean in Sanwer village. Where should I sell?",
     "steps": [
