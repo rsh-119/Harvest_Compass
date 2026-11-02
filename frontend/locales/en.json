@@ -26,6 +26,7 @@
     "cta_ask": "Ask a question",
     "cta_how": "See how it works",
     "video_title": "How a farmer uses it",
+    "video_note": "AI-generated video",
     "video_sub": "A farmer asks about the crop they want to sell, in their own words, and gets the mandi that pays most after transport and the dry days to harvest.",
     "figure_label": "What the agent does with one question",
     "demo_question": "I have 40 quintals of soybean in Sanwer village. Where should I sell?",
@@ -350,11 +351,11 @@
   },
   "results": {
     "title": "What we measured",
-    "sub": "All figures are read from stored runs, including cases where the agent does not beat the simple choice.",
+    "sub": "The backtest and live usage are read from stored runs, including cases where the agent does not beat the simple choice. The grounding table is a dated record of one test run.",
     "bt_title": "Backtest: 60 days, 30 villages in Madhya Pradesh",
     "bt_body": "Each day, the agent chose a mandi using only data up to that day, with its own audit and ranking. We scored the choice on the next day's real price at that mandi, against the nearest reporting mandi. Regret is how far behind the best mandi in hindsight it was.",
     "ground_title": "Grounding: does the model invent numbers?",
-    "ground_body": "20 varied questions through the whole agent, on 31 Oct 2026. Every number in each answer was checked against the computed facts.",
+    "ground_body": "Model comparison, run on 31 Oct 2026: 20 varied questions through the whole agent, with every number in each answer checked against the computed facts. Latest run of the live model (1 Nov 2026, evening): 18 of 20 answered, 0 invented numbers; one asked to confirm a tahsil, one failed once and answered on rerun.",
     "cols": {
       "model": "Model",
       "answered": "Answered",

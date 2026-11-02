@@ -68,6 +68,7 @@ export default function Home() {
           aria-label={h.video_title}
           className="glass-strong mt-6 aspect-video w-full rounded-3xl"
         />
+        <p className="mt-3 text-sm text-ink-600">{h.video_note}</p>
       </section>
 
       <section className="mx-auto max-w-6xl py-16">
