@@ -17,17 +17,15 @@ export default function UsageStats() {
   if (!s.requests) return <p className="text-ink-600">{u.none}</p>;
   const items = [
     [u.questions, s.requests.toLocaleString("en-IN")],
-    [u.median, `${((s.p50_ms ?? 0) / 1000).toFixed(1)} s`],
-    [u.p95, `${((s.p95_ms ?? 0) / 1000).toFixed(1)} s`],
-    [u.repair, `${Math.round((s.fallback_rate ?? 0) * 100)}%`],
-    [u.invented, String(s.invented_numbers ?? 0)],
+    [u.typical_time, `${((s.p50_ms ?? 0) / 1000).toFixed(0)} s`],
+    [u.wrong_numbers, String(s.invented_numbers ?? 0)],
   ];
   return (
-    <dl className="glass grid grid-cols-2 gap-6 p-6 sm:grid-cols-5">
+    <dl className="glass grid grid-cols-1 gap-6 p-6 sm:grid-cols-3">
       {items.map(([k, v]) => (
         <div key={k}>
           <dt className="text-sm text-ink-600">{k}</dt>
-          <dd className="font-display text-3xl font-bold">{v}</dd>
+          <dd className="font-display text-4xl font-bold">{v}</dd>
         </div>
       ))}
     </dl>

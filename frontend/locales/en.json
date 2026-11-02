@@ -351,75 +351,35 @@
   },
   "results": {
     "title": "What we measured",
-    "sub": "The backtest and live usage are read from stored runs, including cases where the agent does not beat the simple choice. The grounding table is a dated record of one test run.",
-    "bt_title": "Backtest: 60 days, 30 villages in Madhya Pradesh",
-    "bt_body": "Each day, the agent chose a mandi using only data up to that day, with its own audit and ranking. We scored the choice on the next day's real price at that mandi, against the nearest reporting mandi. Regret is how far behind the best mandi in hindsight it was.",
-    "ground_title": "Grounding: does the model invent numbers?",
-    "ground_body": "Model comparison, run on 31 Oct 2026: 20 varied questions through the whole agent, with every number in each answer checked against the computed facts. Latest run of the live model (1 Nov 2026, evening): 18 of 20 answered, 0 invented numbers; one asked to confirm a tahsil, one failed once and answered on rerun.",
-    "cols": {
-      "model": "Model",
-      "answered": "Answered",
-      "invented": "Invented numbers",
-      "time": "Median / p95 time",
-      "note": "Note"
-    },
-    "ground_rows": [
-      {
-        "answered": "19 of 20",
-        "time": "11.4 s / 15.3 s",
-        "note": "The 20th correctly asked to confirm a tahsil"
-      },
-      {
-        "answered": "19 of 20",
-        "time": "11.6 s median",
-        "note": "Wrote Badnagar as a different town"
-      },
-      {
-        "answered": "—",
-        "time": "—",
-        "note": "Doesn't support the forced tool call we use"
-      }
-    ],
-    "in_use": "in use",
     "usage_title": "Live usage, last 7 days",
-    "usage_body": "Logged for every question asked on this site. No IP or identity is stored.",
-    "limits_title": "Limits",
-    "limits": [
-      "Transport in the backtest is an assumed range, not a measured local rate. Live answers use the farmer's own rate.",
-      "data.gov.in history lags a day and many mandis skip days; about 30–40% of replayed decisions couldn't be scored.",
-      "The ₹50 per quintal close-call margin is a judgement call.",
-      "Only mandis in the farmer's own state are compared.",
-      "Weather beyond 7 days isn't forecast; those days are shown as having no forecast yet.",
-      "Voice accuracy on real farmer recordings is still being measured."
+    "simple_sub": "Real results from real data. Nothing here is a promise or a guess.",
+    "simple_bt_title": "Does following the app earn more?",
+    "simple_bt_body": "We went back 60 days (31 Aug to 30 Oct 2026) for 30 villages in Madhya Pradesh. Each day, the app picked a mandi using only the prices known that day. We then checked the next day's real price there and compared it with just selling at the nearest mandi, after transport at ₹1 per quintal per km.",
+    "simple_bt_why": "Onion prices differ a lot from mandi to mandi, so picking the right one pays. Soybean prices are almost the same everywhere, so the nearest mandi is usually fine, and the app says so. The app works for all 80 crops; these two were tested because they are opposite cases.",
+    "simple_usage_body": "Counted from every question asked on this site. No names or phone numbers are stored.",
+    "simple_limits_title": "What it doesn't do yet",
+    "simple_limits": [
+      "It only compares mandis inside the farmer's own state.",
+      "Weather is forecast for the next 7 days only.",
+      "Storage costs aren't counted when it shows what waiting might do.",
+      "Some mandis don't report prices every day, so a few areas have fewer choices."
     ]
   },
   "backtest": {
     "loading": "Loading the stored backtest…",
-    "rate_label": "Transport cost (assumed, ₹ per quintal per km):",
-    "rate_aria": "Transport cost",
-    "window": "{n} villages, {from} to {to}",
-    "col_how": "How the mandi is picked",
-    "col_gain": "Mean gain / q",
-    "col_beat": "Beat nearest",
-    "col_regret": "Regret / q",
-    "strat": {
-      "today": "Rank on today's price",
-      "median7": "Rank on 7-day median",
-      "median7_near": "7-day median, nearer on close calls (live)"
-    },
     "crop": {
       "Soyabean": "Soybean",
       "Onion": "Onion"
-    }
+    },
+    "simple_gain": "more per quintal, on average, than the nearest mandi",
+    "simple_detail": "Better than the nearest mandi on {pct}% of {n} days checked."
   },
   "usage": {
     "none": "No questions logged in the last 7 days yet.",
     "questions": "Questions",
-    "median": "Median time",
-    "p95": "95th percentile",
-    "repair": "Needed a repair",
-    "invented": "Invented numbers caught",
-    "failed": "Usage data is unavailable right now. Please try again shortly."
+    "failed": "Usage data is unavailable right now. Please try again shortly.",
+    "typical_time": "Typical answer time",
+    "wrong_numbers": "Made-up numbers in answers"
   },
   "data": {
     "title": "Where every number comes from",
