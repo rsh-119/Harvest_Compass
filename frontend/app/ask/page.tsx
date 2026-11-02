@@ -739,7 +739,7 @@ function Status({ h, faults, setFaults }: { h: Health; faults: string[]; setFaul
             <li key={k}>
               {v.ok ? "✅" : "❌"} {(d.ask as Record<string, string>)[`src_${k}`] ?? k}
               <span className="text-xs text-ink-500">
-                {v.ms != null ? ` · ${v.ms} ms` : v.note ? ` · ${v.note}` : ""}
+                {v.ms != null ? ` · ${v.ms} ms` : v.note && k !== "mandi_prices" ? ` · ${v.note}` : ""}
                 {v.error ? ` · ${v.error}` : ""}
               </span>
             </li>
