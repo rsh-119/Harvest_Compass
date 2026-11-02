@@ -372,7 +372,7 @@
       "Onion": "Onion"
     },
     "simple_gain": "more per quintal, on average, than the nearest mandi",
-    "simple_detail": "Better than the nearest mandi on {pct}% of {n} days checked."
+    "simple_detail": "Better than the nearest mandi in {pct}% of {n} checks (one check = one village on one day)."
   },
   "usage": {
     "none": "No questions logged in the last 7 days yet.",

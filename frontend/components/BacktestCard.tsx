@@ -44,7 +44,7 @@ export default function BacktestCard() {
             </p>
             <p className="mt-1 text-ink-700">{b.simple_gain}</p>
             <p className="mt-3 text-sm text-ink-600">
-              {fmt(b.simple_detail, { pct: s.pct_positive ?? 0, n: s.decisions.toLocaleString("en-IN") })}
+              {fmt(b.simple_detail, { pct: Math.round(s.pct_positive ?? 0), n: s.decisions.toLocaleString("en-IN") })}
             </p>
           </section>
         );
